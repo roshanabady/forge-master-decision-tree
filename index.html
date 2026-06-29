@@ -79,11 +79,13 @@ input[type="checkbox"] {
   z-index: 10;
 }
 .ecard:hover { border-color: var(--border-strong); }
-.ecard.sel { 
-  border: 1.5px solid var(--theme-color, #378ADD); 
-  z-index: 50; 
+.ecard.sel {
+  border: 1.5px solid var(--theme-color, #378ADD);
+  z-index: 50;
   cursor: default;
   opacity: 1 !important;
+  height: auto !important;
+  overflow: visible;
 }
 .etop { height: 2px; width: 100%; }
 .tcheck { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-secondary); margin: 3px 0; cursor: pointer; }
@@ -103,7 +105,7 @@ input[type="checkbox"] {
       <span><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#DCA63B;margin-right:3px;vertical-align:middle;"></span>Skills</span>
       <span><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#2982D9;margin-right:3px;vertical-align:middle;"></span>Tech</span>
     </div>
-    <button onclick="resetLayout()" style="font-size:11px;padding:4px 8px;opacity:0.7;" title="Reset card positions to default"><i class="ti ti-layout-grid" aria-hidden="true"></i></button>
+    <button onclick="resetLayout()" style="font-size:11px;padding:4px 8px;opacity:0.7;" title="Clean Up"><i class="ti ti-grid-dots" aria-hidden="true"></i> Clean Up</button>
     <button onclick="exportJSON()" style="font-size:11px;padding:4px 8px;" title="Download build as JSON"><i class="ti ti-download" aria-hidden="true"></i></button>
     <button onclick="document.getElementById('import-file').click()" style="font-size:11px;padding:4px 8px;" title="Import build from JSON"><i class="ti ti-upload" aria-hidden="true"></i></button>
     <input type="file" id="import-file" accept=".json" style="display:none;" onchange="importJSON(event)">
@@ -112,7 +114,7 @@ input[type="checkbox"] {
 </div>
 
 <div id="canvas-wrap">
-<div id="canvas" style="position:relative;width:1140px;height:850px;background:var(--surface-1);border:0.5px solid var(--border);border-radius:12px;overflow:hidden;">
+<div id="canvas" style="position:relative;width:1140px;height:850px;background:var(--surface-1);border:0.5px solid var(--border);border-radius:12px;overflow:visible;">
   <svg id="svg-lines" style="position:absolute;top:0;left:0;width:1140px;height:850px;pointer-events:none;"></svg>
   <div id="cards"></div>
 </div>
@@ -176,41 +178,39 @@ function renderIcon(iconVal,col){
   return `<i class="ti ${iconVal}" style="font-size:12px;color:${col};margin-top:1px;flex-shrink:0;" aria-hidden="true"></i>`;
 }
 
-const ENTS=[
-  // Gear — two columns of 4
-  {id:'weapon',  label:'Weapon',         type:'gear',     icon:'ti-sword',       x:10,  y:10,  w:145,h:88},
-  {id:'gloves',  label:'Gloves',         type:'gear',     icon:'ti-hand-finger', x:10,  y:106, w:145,h:88},
-  {id:'helmet',  label:'Helmet',         type:'gear',     icon:'ti-crown',       x:10,  y:202, w:145,h:88},
-  {id:'body',    label:'Body',           type:'gear',     icon:'ti-shield',      x:10,  y:298, w:145,h:88},
-  {id:'necklace',label:'Necklace',       type:'gear',     icon:'ti-link',        x:163, y:10,  w:145,h:88},
-  {id:'ring',    label:'Ring',           type:'gear',     icon:'ti-circle',      x:163, y:106, w:145,h:88},
-  {id:'boots',   label:'Boots',          type:'gear',     icon:'ti-arrow-up',    x:163, y:202, w:145,h:88},
-  {id:'pelvic',  label:'Pelvic Harness', type:'gear',     icon:'ti-adjustments', x:163, y:298, w:145,h:88},
+let ENTS=[
+  // Row 0 (y=10) — 8 gear cards, step x=135
+  {id:'weapon',  label:'Weapon',         type:'gear',     icon:'ti-sword',       x:10,  y:10,  w:127,h:106},
+  {id:'gloves',  label:'Gloves',         type:'gear',     icon:'ti-hand-finger', x:145, y:10,  w:127,h:106},
+  {id:'helmet',  label:'Helmet',         type:'gear',     icon:'ti-crown',       x:280, y:10,  w:127,h:106},
+  {id:'body',    label:'Body',           type:'gear',     icon:'ti-shield',      x:415, y:10,  w:127,h:106},
+  {id:'necklace',label:'Necklace',       type:'gear',     icon:'ti-link',        x:550, y:10,  w:127,h:106},
+  {id:'ring',    label:'Ring',           type:'gear',     icon:'ti-circle',      x:685, y:10,  w:127,h:106},
+  {id:'boots',   label:'Boots',          type:'gear',     icon:'ti-arrow-up',    x:820, y:10,  w:127,h:106},
+  {id:'pelvic',  label:'Pelvic Harness', type:'gear',     icon:'ti-adjustments', x:955, y:10,  w:127,h:106},
 
-  // Pets column
-  {id:'pet1',    label:'Pet 1',          type:'pet',      icon:'ti-heart',       x:520, y:10,  w:145,h:88},
-  {id:'pet2',    label:'Pet 2',          type:'pet',      icon:'ti-heart',       x:520, y:106, w:145,h:88},
-  {id:'pet3',    label:'Pet 3',          type:'pet',      icon:'ti-heart',       x:520, y:202, w:145,h:88},
-  {id:'inv2',    label:'Inventory 2',    type:'parked',   icon:'ti-archive',     x:520, y:298, w:145,h:88},
-  {id:'inv3',    label:'Inventory 3',    type:'parked',   icon:'ti-archive',     x:520, y:394, w:145,h:88},
-  {id:'inv4',    label:'Inventory 4',    type:'parked',   icon:'ti-archive',     x:520, y:490, w:145,h:88},
+  // Row 1 (y=124) — 2 mounts, 3 inventory, 3 pets (pets on right)
+  {id:'mount1',  label:'Ride 1',         type:'mount',    icon:'ti-star',        x:10,  y:124, w:127,h:106},
+  {id:'mount2',  label:'Ride 2',         type:'mount',    icon:'ti-star-half',   x:145, y:124, w:127,h:106},
+  {id:'inv1',    label:'Inventory 1',    type:'parked',   icon:'ti-archive',     x:280, y:124, w:127,h:106},
+  {id:'inv2',    label:'Inventory 2',    type:'parked',   icon:'ti-archive',     x:415, y:124, w:127,h:106},
+  {id:'inv3',    label:'Inventory 3',    type:'parked',   icon:'ti-archive',     x:550, y:124, w:127,h:106},
+  {id:'pet1',    label:'Pet 1',          type:'pet',      icon:'ti-heart',       x:685, y:124, w:127,h:106},
+  {id:'pet2',    label:'Pet 2',          type:'pet',      icon:'ti-heart',       x:820, y:124, w:127,h:106},
+  {id:'pet3',    label:'Pet 3',          type:'pet',      icon:'ti-heart',       x:955, y:124, w:127,h:106},
 
-  // Skills & Tech Tree — own columns to the right
-  {id:'skills',  label:'Skills',         type:'skills',   icon:'ti-bolt',        x:830, y:10,  w:145,h:116},
-  {id:'techtree',label:'Tech Tree',      type:'techtree', icon:'ti-sitemap',     x:985, y:10,  w:145,h:116},
+  // Row 2 (y=238) — 5 inventory
+  {id:'inv4',    label:'Inventory 4',    type:'parked',   icon:'ti-archive',     x:10,  y:238, w:127,h:106},
+  {id:'inv5',    label:'Inventory 5',    type:'parked',   icon:'ti-archive',     x:145, y:238, w:127,h:106},
+  {id:'inv6',    label:'Inventory 6',    type:'parked',   icon:'ti-archive',     x:280, y:238, w:127,h:106},
+  {id:'inv7',    label:'Inventory 7',    type:'parked',   icon:'ti-archive',     x:415, y:238, w:127,h:106},
+  {id:'inv8',    label:'Inventory 8',    type:'parked',   icon:'ti-archive',     x:550, y:238, w:127,h:106},
 
-  // Inventory (parked — formerly with Rides)
-  {id:'inv5',    label:'Inventory 5',    type:'parked',   icon:'ti-archive',     x:675, y:258, w:145,h:88},
-  {id:'inv6',    label:'Inventory 6',    type:'parked',   icon:'ti-archive',     x:675, y:354, w:145,h:88},
-  {id:'inv7',    label:'Inventory 7',    type:'parked',   icon:'ti-archive',     x:675, y:450, w:145,h:88},
-  {id:'inv8',    label:'Inventory 8',    type:'parked',   icon:'ti-archive',     x:675, y:546, w:145,h:88},
-
-  // Rides (mounts) — below gear columns
-  {id:'mount1',  label:'Ride 1',         type:'mount',    icon:'ti-star',        x:10,  y:394, w:145,h:88},
-  {id:'mount2',  label:'Ride 2',         type:'mount',    icon:'ti-star-half',   x:163, y:394, w:145,h:88},
-  {id:'inv1',    label:'Inventory 1',    type:'parked',   icon:'ti-archive',     x:163, y:490, w:145,h:88},
+  // Row 3 (y=352) — Skills & Tech Tree
+  {id:'skills',  label:'Skills',         type:'skills',   icon:'ti-bolt',        x:10,  y:352, w:112,h:116},
+  {id:'techtree',label:'Tech Tree',      type:'techtree', icon:'ti-sitemap',     x:145, y:352, w:112,h:116},
 ];
-const SUM={x:403,y:640,w:334,h:200};
+const SUM={x:403,y:567,w:334,h:200};
 
 const SEED={
   weapon:   {name:'Plasma Rifle',        level:81,  rarity:'Interstellar', slots:['doubleChance','healthRegen'], substats:{doubleChance:16.2, healthRegen:3.65}},
@@ -277,6 +277,22 @@ async function loadDB(){
   try{
     db=await openDB();
     const tx=db.transaction('items','readonly'),st=tx.objectStore('items');
+    // load dynamic ent definitions first so their state loads correctly
+    await new Promise(res=>{
+      const r=st.get('_dynEnts');
+      r.onsuccess=()=>{
+        if(r.result?.data) r.result.data.forEach(e=>{
+          if(!ENTS.find(x=>x.id===e.id)){
+            // refresh w/h from the current base card of same type so size changes propagate
+            const base=ENTS.find(x=>x.type===e.type&&!x._dynamic);
+            if(base){e.w=base.w;e.h=base.h;}
+            ENTS.push(e);
+          }
+        });
+        res();
+      };
+      r.onerror=()=>res();
+    });
     await Promise.all([...ENTS.map(e=>new Promise(res=>{
       const r=st.get(e.id);
       r.onsuccess=()=>{if(r.result)state[e.id]=r.result.data;res();};
@@ -294,6 +310,7 @@ async function saveAll(){
   const tx=db.transaction('items','readwrite'),st=tx.objectStore('items');
   ENTS.forEach(e=>st.put({id:e.id,data:state[e.id]}));
   st.put({id:'_positions',data:state.positions||{}});
+  st.put({id:'_dynEnts',data:ENTS.filter(e=>e._dynamic)});
   await new Promise(res=>{tx.oncomplete=res;tx.onerror=res;});
   btn.innerHTML='<i class="ti ti-check" aria-hidden="true"></i> Saved';
   setTimeout(()=>{btn.innerHTML='<i class="ti ti-device-floppy" aria-hidden="true"></i> Save';},1500);
@@ -368,7 +385,7 @@ function cardBody(e,d,isSel){
       const cur=fmtVal(t[k]),gap=fmtVal(s.tgt-cur);
       if(gap>0) delta=`<span style="font-size:8px;color:#2ACC97;margin-left:3px;" title="Build needs ${gap}% more ${s.l}">▲</span>`;
     }
-    return `<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-secondary);padding:1px 0;"><span>${s.l}${delta}</span><span style="font-weight:500;color:${v>0?'var(--text-primary)':'var(--text-muted)'};">${v>0?fmtVal(v)+'%':'—'}</span></div>`;
+    return `<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-secondary);padding:1px 0;"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;">${s.l}${delta}</span><span style="font-weight:500;color:${v>0?'var(--text-primary)':'var(--text-muted)'};flex-shrink:0;margin-left:4px;">${v>0?fmtVal(v)+'%':'—'}</span></div>`;
   }).join('');
   return `<div style="padding:3px 9px 8px;">${baseRows}${rows}</div>`;
 }
@@ -379,6 +396,7 @@ function ssOptions(selectedKey){
 
 function makeInlineEditor(e,d){
   let content = '';
+  const isMount=e.type==='mount', isPet=e.type==='pet', isParked=e.type==='parked';
   if(e.type==='skills'){
     const slots=d.slots||Array(5).fill(0).map(()=>({name:'',level:1,stype:'Active'}));
     content=`<div style="font-size:10px;font-weight:500;color:var(--text-secondary);margin:4px 0 2px;">Slots</div>`
@@ -391,29 +409,21 @@ function makeInlineEditor(e,d){
     content=`<div style="font-size:9px;color:var(--text-muted);margin:4px 0 6px;">Skip Skill DMG nodes</div>`;
     content+=TN.map(n=>`<label class="tcheck" style="gap:4px;font-size:10px;margin:2px 0;"><input type="checkbox" ${nodes[n.id]?'checked':''} onchange="updTechNode('${n.id}',this.checked)" style="margin:0;transform:scale(0.85);"><span>${n.l}</span></label>`).join('');
   } else {
-    const isMount=e.type==='mount', isPet=e.type==='pet', isParked=e.type==='parked';
     const rarList=e.type==='gear'?GEAR_RARITIES:PARKED_RARITIES;
     const active=d.activeSlots||[SS[0].k,SS[1].k];
 
     const ssRows=active.map((k,i)=>{
       const v=fmtVal(parseFloat(d.substats[k])||0);
-      return `<div class="ss-row">
-        <select onchange="updSlot('${e.id}',${i},this.value)" style="font-size:9px;padding:2px 2px;width:100%;box-sizing:border-box;">${ssOptions(k)}</select>
-        <input type="number" step="0.1" min="0" value="${v}" placeholder="0" oninput="updStatVal('${e.id}','${k}',+this.value)" id="ssval-${e.id}-${i}" style="font-size:10px;padding:2px 4px;text-align:right;width:100%;box-sizing:border-box;">
-        <span style="font-size:9px;color:var(--text-muted);">%</span>
+      return `<div style="margin:3px 0;">
+        <select onchange="updSlot('${e.id}',${i},this.value)" style="font-size:9px;padding:2px 4px;width:100%;box-sizing:border-box;">${ssOptions(k)}</select>
+        <div style="display:flex;align-items:center;gap:3px;margin-top:2px;">
+          <input type="number" step="0.1" min="0" value="${v}" placeholder="0" oninput="updStatVal('${e.id}','${k}',+this.value)" id="ssval-${e.id}-${i}" style="font-size:10px;padding:2px 4px;text-align:right;width:50px;min-width:0;box-sizing:border-box;">
+          <span style="font-size:9px;color:var(--text-muted);flex-shrink:0;">%</span>
+        </div>
       </div>`;
     }).join('');
 
     let swapHTML = '';
-    if (isMount || isPet || isParked) {
-        const swapEntsList = ENTS.filter(p => (p.type === 'pet' || p.type === 'mount' || p.type === 'parked') && p.id !== e.id);
-        const opts = swapEntsList.map(p => `<option value="${p.id}">${p.label} (${state[p.id]?.name || 'Empty'})</option>`).join('');
-        swapHTML = `<div style="margin-top:8px; padding-top:8px; border-top: 0.5px solid var(--border); display:flex; gap:4px; align-items: center;">
-            <span style="font-size:9px; color:var(--text-muted);">Swap:</span>
-            <select id="swap-${e.id}" style="font-size:9px; flex:1; padding:2px;">${opts}</select>
-            <button onclick="swapEnts('${e.id}')" style="font-size:9px; padding:2px 6px;">Swap</button>
-        </div>`;
-    }
 
     content=`
       <div style="margin-top:6px;display:grid;grid-template-columns:1fr 42px;gap:4px;">
@@ -449,11 +459,11 @@ function makeInlineEditor(e,d){
     </div>`:'';
   return `<div style="padding:2px 9px 8px;" onclick="event.stopPropagation();">
     ${content}
-    <div style="display:flex;justify-content:space-between;margin-top:8px;gap:4px;">
-      <button onclick="clearEnt('${e.id}')" style="font-size:9px;padding:2px 6px;flex:1;">Clear</button>
-      <button onclick="closeEdit(event)" style="font-size:9px;padding:2px 6px;flex:1;">Close</button>
-    </div>
     ${statusBtns}
+    <div style="display:flex;gap:4px;margin-top:6px;justify-content:space-between;">
+      <button onclick="deleteEnt('${e.id}')" style="font-size:9px;padding:2px 8px;background:#5c1a1a !important;color:#f87171 !important;border-color:#7f1d1d !important;">Delete</button>
+      <button onclick="dupEnt('${e.id}')" style="font-size:9px;padding:2px 6px;" title="Duplicate"><i class="ti ti-copy" aria-hidden="true"></i></button>
+    </div>
   </div>`;
 }
 
@@ -465,7 +475,7 @@ function renderCards(){
     const title=isStatEnt&&d.name?d.name:e.label;
     const lv=d.level?` Lv.${d.level}`:'';
     const isParked=(d.status||'equipped')==='parked';
-    const statusFooter=isStatEnt
+    const statusFooter=isStatEnt&&!isSel
       ?(isParked
         ?`<div style="position:absolute;bottom:0;left:0;right:0;height:14px;background:#1e1e1e;display:flex;align-items:center;justify-content:center;"><span style="font-size:7px;letter-spacing:1px;font-weight:600;color:#666;">PARKED</span></div>`
         :`<div style="position:absolute;bottom:0;left:0;right:0;height:14px;background:#0f2a1a;display:flex;align-items:center;justify-content:center;"><span style="font-size:7px;letter-spacing:1px;font-weight:600;color:#2ACC97;">EQUIPPED</span></div>`)
@@ -487,14 +497,15 @@ function renderCards(){
     }
 
     const pos=state.positions&&state.positions[e.id]?state.positions[e.id]:{x:e.x,y:e.y};
-    h+=`<div class="ecard ${e.type}${isSel?' sel':''}" data-eid="${e.id}" style="left:${pos.x}px;top:${pos.y}px;width:${e.w}px;height:${calcHeight}px;--theme-color:${tcol};${opacityStyle};cursor:pointer;" onmousedown="startDrag(event,'${e.id}')">
+    h+=`<div class="ecard ${e.type}${isSel?' sel':''}" data-eid="${e.id}" style="left:${pos.x}px;top:${pos.y}px;width:${e.w}px;height:${calcHeight}px;--theme-color:${tcol};${opacityStyle};cursor:pointer;" onmousedown="startDrag(event,'${e.id}')" onclick="cardClick(event,'${e.id}')">
       <div class="etop" style="background:${tcol};"></div>
-      <div style="padding:5px 9px 2px;display:flex;align-items:flex-start;gap:5px;">
+      <div style="padding:5px 9px 2px;display:flex;align-items:flex-start;gap:5px;position:relative;">
         ${renderIcon(itemIcon(e,d),tcol)}
-        <div style="overflow:hidden;min-width:0;">
+        <div style="overflow:hidden;min-width:0;flex:1;">
           <div style="font-size:11px;font-weight:500;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${title}${!d.name&&e.type==='gear'&&lv?lv:''}</div>
           ${subtitle?`<div style="font-size:9px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${subtitle}</div>`:''}
         </div>
+        ${isSel?`<button onclick="closeEdit(event)" style="font-size:11px;padding:0 5px;line-height:17px;border-radius:3px;flex-shrink:0;opacity:0.7;" title="Close">×</button>`:''}
       </div>
       ${cardBody(e,d,isSel)}
       ${statusFooter}
@@ -534,7 +545,7 @@ function renderCards(){
     </div>`;
   }).join('');
   const sumPos=state.positions&&state.positions["summary"]?state.positions["summary"]:{x:SUM.x,y:SUM.y};
-  h+=`<div class="ecard summary${isSumSel?' sel':''}" data-eid="summary" style="left:${sumPos.x}px;top:${sumPos.y}px;width:${SUM.w}px;height:${SUM.h}px;cursor:pointer;" onmousedown="startDrag(event,'summary')">
+  h+=`<div class="ecard summary${isSumSel?' sel':''}" data-eid="summary" style="left:${sumPos.x}px;top:${sumPos.y}px;width:${SUM.w}px;height:${SUM.h}px;cursor:pointer;" onmousedown="startDrag(event,'summary')" onclick="cardClick(event,'summary')">
     <div class="etop" style="background:#378ADD;"></div>
     <div style="padding:6px 12px 4px;display:flex;align-items:center;justify-content:space-between;">
       <div style="display:flex;align-items:center;gap:5px;">
@@ -570,12 +581,16 @@ function renderSummaryRows(){
   document.getElementById('summary-rows').innerHTML=h;
 }
 
-let _justSelected=false;
 function selEnt(id){
   if(selId === id) return;
   selId=id;
-  _justSelected=true;
   renderCards();
+}
+
+function cardClick(ev,id){
+  if(_dragMoved){_dragMoved=false;return;}
+  ev.stopPropagation();
+  selEnt(id);
 }
 
 function closeEdit(e){
@@ -599,8 +614,18 @@ function updStatVal(id,key,val){
 
 function updField(id,f,v){
   state[id][f]=v;
+  if(f==='status'&&v==='equipped'){
+    const ent=ENTS.find(e=>e.id===id);
+    if(ent?.type==='mount'){
+      // only one mount equipped at a time
+      ENTS.filter(e=>e.type==='mount'&&e.id!==id).forEach(e=>{state[e.id].status='parked';});
+    } else if(ent?.type==='pet'){
+      // only three pets equipped at a time — park the first equipped one if over limit
+      const equipped=ENTS.filter(e=>e.type==='pet'&&e.id!==id&&(state[e.id].status||'equipped')==='equipped');
+      if(equipped.length>=3) state[equipped[0].id].status='parked';
+    }
+  }
   renderCards();
-  
   queueSave();
 }
 
@@ -619,6 +644,37 @@ function updTechNode(nid,checked){
 function clearEnt(id){
   state[id]=defData(id);
   renderCards();queueSave();
+}
+
+function dupEnt(srcId){
+  const srcEnt=ENTS.find(e=>e.id===srcId);
+  if(!srcEnt) return;
+  const newId=srcEnt.type+'_'+Date.now();
+  const srcPos=(state.positions&&state.positions[srcId])||{x:srcEnt.x,y:srcEnt.y};
+  // place to the right; if it would overflow canvas width, place below instead
+  let newX=snap(srcPos.x+srcEnt.w+8), newY=snap(srcPos.y);
+  if(newX+srcEnt.w>1140){newX=snap(srcPos.x);newY=snap(srcPos.y+srcEnt.h+8);}
+  const newEnt={id:newId,label:srcEnt.label,type:srcEnt.type,icon:srcEnt.icon,x:newX,y:newY,w:srcEnt.w,h:srcEnt.h,_dynamic:true};
+  ENTS.push(newEnt);
+  state[newId]=JSON.parse(JSON.stringify(state[srcId]));
+  if(!state.positions)state.positions={};
+  state.positions[newId]={x:newX,y:newY};
+  renderCards();saveAll();
+}
+
+function deleteEnt(id){
+  const ent=ENTS.find(e=>e.id===id);
+  if(ent?._dynamic){
+    // remove dynamic card entirely
+    ENTS=ENTS.filter(e=>e.id!==id);
+    delete state[id];
+    if(state.positions) delete state.positions[id];
+  } else {
+    // static slot: just clear data
+    state[id]=defData(id);
+  }
+  selId=null;
+  renderCards();saveAll();
 }
 
 function swapEnts(id1){
@@ -649,6 +705,7 @@ function importJSON(ev){
     try{
       const imported=JSON.parse(reader.result);
       ENTS.forEach(e=>{if(imported[e.id])state[e.id]=imported[e.id];});
+      if(imported.positions) state.positions=imported.positions;
       renderCards();saveAll();
     }catch(err){alert('Invalid JSON file');}
   };
@@ -657,7 +714,6 @@ function importJSON(ev){
 }
 
 document.addEventListener('click',function(e){
-  if(_justSelected){_justSelected=false;return;}
   if(!selId) return;
   if(e.target.closest('.ecard.sel')) return;
   selId=null;renderCards();
@@ -666,24 +722,24 @@ document.addEventListener('keydown',function(e){
   if(e.key==='Escape'&&selId){selId=null;renderCards();}
 });
 
-// --- Free drag (top third) / click to edit (bottom two-thirds) ---
-let _drag=null;
+// --- Free drag (move) / click to edit ---
+const GRID=8;
+function snap(v){return Math.round(v/GRID)*GRID;}
+
+let _drag=null, _dragMoved=false;
 function startDrag(ev,id){
   if(ev.button!==0)return;
-  const rect=ev.currentTarget.getBoundingClientRect();
-  const relY=ev.clientY-rect.top;
-  const isTopThird=relY<=rect.height/3;
   const e=ENTS.find(e=>e.id===id);
   const defPos=e?{x:e.x,y:e.y}:(id==='summary'?{x:SUM.x,y:SUM.y}:{x:0,y:0});
   const cur=(state.positions&&state.positions[id])||defPos;
-  _drag={id,startX:ev.clientX,startY:ev.clientY,origX:cur.x,origY:cur.y,moved:false,topThird:isTopThird};
+  _drag={id,startX:ev.clientX,startY:ev.clientY,origX:cur.x,origY:cur.y,moved:false};
 }
 document.addEventListener('mousemove',function(ev){
   if(!_drag)return;
   const dx=ev.clientX-_drag.startX,dy=ev.clientY-_drag.startY;
   if(!_drag.moved&&Math.abs(dx)<5&&Math.abs(dy)<5)return;
   _drag.moved=true;
-  const newX=Math.max(0,_drag.origX+dx),newY=Math.max(0,_drag.origY+dy);
+  const newX=snap(Math.max(0,_drag.origX+dx)),newY=snap(Math.max(0,_drag.origY+dy));
   const el=document.querySelector(`[data-eid="${_drag.id}"]`);
   if(el){el.style.left=newX+'px';el.style.top=newY+'px';}
   if(!state.positions)state.positions={};
@@ -694,24 +750,54 @@ document.addEventListener('mouseup',function(ev){
   if(_drag.moved){
     if(!state.positions)state.positions={};
     state.positions[_drag.id]={
-      x:Math.max(0,_drag.origX+(ev.clientX-_drag.startX)),
-      y:Math.max(0,_drag.origY+(ev.clientY-_drag.startY))
+      x:snap(Math.max(0,_drag.origX+(ev.clientX-_drag.startX))),
+      y:snap(Math.max(0,_drag.origY+(ev.clientY-_drag.startY)))
     };
+    _dragMoved=true;
     _drag=null;
     drawLines();queueSave();
   } else {
-    const id=_drag.id;
-    const wasTopThird=_drag.topThird;
     _drag=null;
-    if(!wasTopThird) selEnt(id); // bottom two-thirds tap → open editor
+    // cardClick on the card will fire next and handle selection
   }
 });
 function resetLayout(){
-  state.positions={};
+  const GAP=8, MARGIN=10;
+  const cellW=135, cellH=114; // card w/h + gap (127+8, 106+8)
+  const maxCols=Math.floor((1140-MARGIN)/cellW);
+
+  // Find each card's nearest grid cell based on current position
+  const cards=ENTS.map(e=>{
+    const pos=(state.positions&&state.positions[e.id])||{x:e.x,y:e.y};
+    return {e, col:Math.max(0,Math.round((pos.x-MARGIN)/cellW)), row:Math.max(0,Math.round((pos.y-MARGIN)/cellH))};
+  });
+
+  // Assign cells, resolving collisions by scanning forward in reading order
+  const occupied=new Set();
+  const newPos={};
+  for(const c of cards){
+    let {col,row}=c;
+    let placed=false;
+    for(let r=row;r<row+40&&!placed;r++){
+      for(let cc=(r===row?col:0);cc<maxCols&&!placed;cc++){
+        if(!occupied.has(`${cc},${r}`)){col=cc;row=r;placed=true;}
+      }
+    }
+    occupied.add(`${col},${row}`);
+    newPos[c.e.id]={x:MARGIN+col*cellW,y:MARGIN+row*cellH};
+  }
+  newPos['summary']={x:SUM.x,y:SUM.y};
+  state.positions=newPos;
   renderCards();drawLines();queueSave();
 }
 
-async function init(){initState();await loadDB();drawLines();renderCards();}
+async function init(){
+  initState();await loadDB();
+  // reset summary to centred 2/3-down position, overriding any stale saved position
+  if(!state.positions)state.positions={};
+  state.positions['summary']={x:SUM.x,y:SUM.y};
+  drawLines();renderCards();
+}
 init();
 </script>
 </body>
