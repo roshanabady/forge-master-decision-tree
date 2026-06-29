@@ -93,7 +93,7 @@ input[type="checkbox"] {
 </head>
 <body>
 <div style="padding:1rem 1rem; min-height: 100vh; user-select: none;">
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding:0 4px;max-width: 680px;">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding:0 4px;max-width:1140px;flex-wrap:wrap;gap:6px;">
   <span style="font-size:14px;font-weight:500;color:var(--text-primary);">Build tracker — Forge Master</span>
   <div style="display:flex;align-items:center;gap:10px;">
     <div style="display:flex;gap:8px;font-size:11px;color:var(--text-muted);">
@@ -103,18 +103,19 @@ input[type="checkbox"] {
       <span><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#DCA63B;margin-right:3px;vertical-align:middle;"></span>Skills</span>
       <span><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#2982D9;margin-right:3px;vertical-align:middle;"></span>Tech</span>
     </div>
+    <button onclick="resetLayout()" style="font-size:11px;padding:4px 8px;opacity:0.7;" title="Reset card positions to default"><i class="ti ti-layout-grid" aria-hidden="true"></i></button>
+    <button onclick="exportJSON()" style="font-size:11px;padding:4px 8px;" title="Download build as JSON"><i class="ti ti-download" aria-hidden="true"></i></button>
+    <button onclick="document.getElementById('import-file').click()" style="font-size:11px;padding:4px 8px;" title="Import build from JSON"><i class="ti ti-upload" aria-hidden="true"></i></button>
+    <input type="file" id="import-file" accept=".json" style="display:none;" onchange="importJSON(event)">
     <button id="save-btn" onclick="saveAll()" style="font-size:11px;padding:4px 10px;"><i class="ti ti-device-floppy" aria-hidden="true"></i> Save</button>
   </div>
 </div>
 
-<div id="canvas" style="position:relative;width:680px;height:1320px;background:var(--surface-1);border:0.5px solid var(--border);border-radius:12px;overflow:hidden;">
-  <svg id="svg-lines" style="position:absolute;top:0;left:0;width:680px;height:1320px;pointer-events:none;"></svg>
+<div id="canvas-wrap">
+<div id="canvas" style="position:relative;width:1140px;height:850px;background:var(--surface-1);border:0.5px solid var(--border);border-radius:12px;overflow:hidden;">
+  <svg id="svg-lines" style="position:absolute;top:0;left:0;width:1140px;height:850px;pointer-events:none;"></svg>
   <div id="cards"></div>
 </div>
-
-<div style="margin-top:12px;max-width: 638px;background:var(--surface-2);border:0.5px solid var(--border);border-radius:12px;padding:1rem 1.25rem;">
-  <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:10px;">Substat totals — gear + mounts + pets</div>
-  <div id="summary-rows"></div>
 </div>
 </div>
 
@@ -159,37 +160,57 @@ const RARITY_COL={
   Ultimate:'#F05B5A'
 };
 const COL={gear:'#968DF2',mount:'#2ACC97',pet:'#E96B3E',skills:'#DCA63B',techtree:'#2982D9',parked:'#666666'};
+const NAME_ICON={
+  'electry':'icons/rabbit.png','serpent':'icons/snake.png','cerberus':'icons/dog.png',
+  'enchanted elk':'icons/deer.png','kitsune':'icons/fox.png','brown leaf':'icons/leaf.png',
+  'plasma rifle':'icons/rifle.png',
+  'lily pad':'icons/lilypad.png','lily leaf':'icons/lily-leaf.png','treant':'icons/treant.png',
+};
+function itemIcon(e,d){
+  const n=(d.name||'').toLowerCase();
+  return NAME_ICON[n]||e.icon;
+}
+function renderIcon(iconVal,col){
+  if(iconVal.endsWith('.png'))
+    return `<span style="display:inline-block;width:14px;height:14px;margin-top:1px;flex-shrink:0;background-color:${col};-webkit-mask-image:url(${iconVal});mask-image:url(${iconVal});-webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;" aria-hidden="true"></span>`;
+  return `<i class="ti ${iconVal}" style="font-size:12px;color:${col};margin-top:1px;flex-shrink:0;" aria-hidden="true"></i>`;
+}
 
 const ENTS=[
+  // Gear — two columns of 4
   {id:'weapon',  label:'Weapon',         type:'gear',     icon:'ti-sword',       x:10,  y:10,  w:145,h:88},
   {id:'gloves',  label:'Gloves',         type:'gear',     icon:'ti-hand-finger', x:10,  y:106, w:145,h:88},
   {id:'helmet',  label:'Helmet',         type:'gear',     icon:'ti-crown',       x:10,  y:202, w:145,h:88},
   {id:'body',    label:'Body',           type:'gear',     icon:'ti-shield',      x:10,  y:298, w:145,h:88},
-  {id:'necklace',label:'Necklace',       type:'gear',     icon:'ti-link',        x:10,  y:394, w:145,h:88},
-  {id:'ring',    label:'Ring',           type:'gear',     icon:'ti-circle',      x:10,  y:490, w:145,h:88},
-  {id:'boots',   label:'Boots',          type:'gear',     icon:'ti-arrow-up',    x:10,  y:586, w:145,h:88},
-  {id:'pelvic',  label:'Pelvic Harness', type:'gear',     icon:'ti-adjustments', x:10,  y:682, w:145,h:88},
-  
-  {id:'pet1',    label:'Pet 1',          type:'pet',      icon:'ti-heart',       x:525, y:10,  w:145,h:88},
-  {id:'pet2',    label:'Pet 2',          type:'pet',      icon:'ti-heart',       x:525, y:106, w:145,h:88},
-  {id:'pet3',    label:'Pet 3',          type:'pet',      icon:'ti-heart',       x:525, y:202, w:145,h:88},
-  {id:'mount1',  label:'Mount 1',        type:'mount',    icon:'ti-star',        x:525, y:298, w:145,h:110},
-  {id:'mount2',  label:'Mount 2',        type:'mount',    icon:'ti-star-half',   x:525, y:418, w:145,h:110},
-  
-  // New Inventory Slots
-  {id:'inv1',    label:'Inventory 1',    type:'parked',   icon:'ti-archive',     x:525, y:538, w:145,h:88},
-  {id:'inv2',    label:'Inventory 2',    type:'parked',   icon:'ti-archive',     x:525, y:634, w:145,h:88},
-  {id:'inv3',    label:'Inventory 3',    type:'parked',   icon:'ti-archive',     x:525, y:730, w:145,h:88},
-  {id:'inv4',    label:'Inventory 4',    type:'parked',   icon:'ti-archive',     x:525, y:826, w:145,h:88},
-  {id:'inv5',    label:'Inventory 5',    type:'parked',   icon:'ti-archive',     x:525, y:922, w:145,h:88},
-  {id:'inv6',    label:'Inventory 6',    type:'parked',   icon:'ti-archive',     x:525, y:1018, w:145,h:88},
-  {id:'inv7',    label:'Inventory 7',    type:'parked',   icon:'ti-archive',     x:525, y:1114, w:145,h:88},
-  {id:'inv8',    label:'Inventory 8',    type:'parked',   icon:'ti-archive',     x:525, y:1210, w:145,h:88},
-  
-  {id:'skills',  label:'Skills',         type:'skills',   icon:'ti-bolt',        x:175, y:420, w:160,h:116},
-  {id:'techtree',label:'Tech Tree',      type:'techtree', icon:'ti-sitemap',     x:349, y:420, w:160,h:116},
+  {id:'necklace',label:'Necklace',       type:'gear',     icon:'ti-link',        x:163, y:10,  w:145,h:88},
+  {id:'ring',    label:'Ring',           type:'gear',     icon:'ti-circle',      x:163, y:106, w:145,h:88},
+  {id:'boots',   label:'Boots',          type:'gear',     icon:'ti-arrow-up',    x:163, y:202, w:145,h:88},
+  {id:'pelvic',  label:'Pelvic Harness', type:'gear',     icon:'ti-adjustments', x:163, y:298, w:145,h:88},
+
+  // Pets column
+  {id:'pet1',    label:'Pet 1',          type:'pet',      icon:'ti-heart',       x:520, y:10,  w:145,h:88},
+  {id:'pet2',    label:'Pet 2',          type:'pet',      icon:'ti-heart',       x:520, y:106, w:145,h:88},
+  {id:'pet3',    label:'Pet 3',          type:'pet',      icon:'ti-heart',       x:520, y:202, w:145,h:88},
+  {id:'inv2',    label:'Inventory 2',    type:'parked',   icon:'ti-archive',     x:520, y:298, w:145,h:88},
+  {id:'inv3',    label:'Inventory 3',    type:'parked',   icon:'ti-archive',     x:520, y:394, w:145,h:88},
+  {id:'inv4',    label:'Inventory 4',    type:'parked',   icon:'ti-archive',     x:520, y:490, w:145,h:88},
+
+  // Skills & Tech Tree — own columns to the right
+  {id:'skills',  label:'Skills',         type:'skills',   icon:'ti-bolt',        x:830, y:10,  w:145,h:116},
+  {id:'techtree',label:'Tech Tree',      type:'techtree', icon:'ti-sitemap',     x:985, y:10,  w:145,h:116},
+
+  // Inventory (parked — formerly with Rides)
+  {id:'inv5',    label:'Inventory 5',    type:'parked',   icon:'ti-archive',     x:675, y:258, w:145,h:88},
+  {id:'inv6',    label:'Inventory 6',    type:'parked',   icon:'ti-archive',     x:675, y:354, w:145,h:88},
+  {id:'inv7',    label:'Inventory 7',    type:'parked',   icon:'ti-archive',     x:675, y:450, w:145,h:88},
+  {id:'inv8',    label:'Inventory 8',    type:'parked',   icon:'ti-archive',     x:675, y:546, w:145,h:88},
+
+  // Rides (mounts) — below gear columns
+  {id:'mount1',  label:'Ride 1',         type:'mount',    icon:'ti-star',        x:10,  y:394, w:145,h:88},
+  {id:'mount2',  label:'Ride 2',         type:'mount',    icon:'ti-star-half',   x:163, y:394, w:145,h:88},
+  {id:'inv1',    label:'Inventory 1',    type:'parked',   icon:'ti-archive',     x:163, y:490, w:145,h:88},
 ];
-const SUM={x:175,y:158,w:334,h:230};
+const SUM={x:403,y:640,w:334,h:200};
 
 const SEED={
   weapon:   {name:'Plasma Rifle',        level:81,  rarity:'Interstellar', slots:['doubleChance','healthRegen'], substats:{doubleChance:16.2, healthRegen:3.65}},
@@ -226,7 +247,7 @@ function defData(id){
   const e=ENTS.find(e=>e.id===id);
   if(e.type==='skills') return {slots:Array(5).fill(0).map(()=>({name:'',level:1,stype:'Active'}))};
   if(e.type==='techtree') return {nodes:{}};
-  const d={name:'',imageUrl:'',level:1,rarity:'',activeSlots:[SS[0].k,SS[1].k],substats:{}};
+  const d={name:'',imageUrl:'',level:1,rarity:'',damage:0,hp:0,status:e.type==='parked'?'parked':'equipped',activeSlots:[SS[0].k,SS[1].k],substats:{}};
   SS.forEach(s=>d.substats[s.k]=0);
   if(e.type==='mount' || e.type==='pet' || e.type==='parked') d.rarity='Common';
   return d;
@@ -237,7 +258,7 @@ function initState(){
     state[e.id]=defData(e.id);
     const s=SEED[e.id];
     if(!s) return;
-    ['name','level','rarity','imageUrl'].forEach(f=>{if(s[f]!==undefined)state[e.id][f]=s[f];});
+    ['name','level','rarity','imageUrl','damage','hp','status'].forEach(f=>{if(s[f]!==undefined)state[e.id][f]=s[f];});
     if(s.substats) Object.assign(state[e.id].substats, s.substats);
     if(s.slots) state[e.id].activeSlots=s.slots;
   });
@@ -256,11 +277,15 @@ async function loadDB(){
   try{
     db=await openDB();
     const tx=db.transaction('items','readonly'),st=tx.objectStore('items');
-    await Promise.all(ENTS.map(e=>new Promise(res=>{
+    await Promise.all([...ENTS.map(e=>new Promise(res=>{
       const r=st.get(e.id);
       r.onsuccess=()=>{if(r.result)state[e.id]=r.result.data;res();};
       r.onerror=()=>res();
-    })));
+    })),new Promise(res=>{
+      const r=st.get('_positions');
+      r.onsuccess=()=>{if(r.result)state.positions=r.result.data;res();};
+      r.onerror=()=>res();
+    })]);
   }catch(err){db=null;}
 }
 async function saveAll(){
@@ -268,6 +293,7 @@ async function saveAll(){
   if(!db){btn.textContent='No DB';setTimeout(()=>{btn.innerHTML='<i class="ti ti-device-floppy" aria-hidden="true"></i> Save';},2000);return;}
   const tx=db.transaction('items','readwrite'),st=tx.objectStore('items');
   ENTS.forEach(e=>st.put({id:e.id,data:state[e.id]}));
+  st.put({id:'_positions',data:state.positions||{}});
   await new Promise(res=>{tx.oncomplete=res;tx.onerror=res;});
   btn.innerHTML='<i class="ti ti-check" aria-hidden="true"></i> Saved';
   setTimeout(()=>{btn.innerHTML='<i class="ti ti-device-floppy" aria-hidden="true"></i> Save';},1500);
@@ -275,24 +301,28 @@ async function saveAll(){
 
 function fmtVal(v){return Math.round(v*10)/10;}
 
+function entPos(e){
+  const p=state.positions&&state.positions[e.id];
+  return p?{x:p.x,y:p.y}:{x:e.x,y:e.y};
+}
+function sumPos(){
+  const p=state.positions&&state.positions['summary'];
+  return p?{x:p.x,y:p.y}:{x:SUM.x,y:SUM.y};
+}
 function drawLines(){
-  const sc={x:SUM.x+SUM.w/2,y:SUM.y+SUM.h/2};
+  const sp=sumPos(),sc={x:sp.x+SUM.w/2,y:sp.y+SUM.h/2};
   let h='';
-  ENTS.forEach(e=>{
-    if(e.type === 'parked') return; // Do not draw connection lines for parked inventory
-    const c={x:e.x+e.w/2,y:e.y+e.h/2},col=COL[e.type],sup=e.type==='skills'||e.type==='techtree';
-    h+=`<line x1="${c.x}" y1="${c.y}" x2="${sc.x}" y2="${sc.y}" stroke="${col}" stroke-width="1.2" stroke-opacity="${sup?'0.3':'0.55'}" stroke-dasharray="${sup?'7 5':'5 4'}"/>`;
-    h+=`<circle cx="${c.x}" cy="${c.y}" r="${sup?2.5:3}" fill="${col}" fill-opacity="0.75"/>`;
-  });
-  h+=`<circle cx="${sc.x}" cy="${sc.y}" r="5" fill="#378ADD" fill-opacity="0.8"/>`;
   document.getElementById('svg-lines').innerHTML=h;
 }
 
 function totals(){
-  const t={};SS.forEach(s=>t[s.k]=0);
-  ENTS.filter(e=>['gear','mount','pet'].includes(e.type)).forEach(e=>{
+  const t={damage:0,hp:0};SS.forEach(s=>t[s.k]=0);
+  ENTS.filter(e=>['gear','mount','pet','parked'].includes(e.type)).forEach(e=>{
     const d=state[e.id];
-    if(d&&d.substats)SS.forEach(s=>{t[s.k]+=(parseFloat(d.substats[s.k])||0);});
+    if(!d || d.status==='parked') return;
+    if(d.substats)SS.forEach(s=>{t[s.k]+=(parseFloat(d.substats[s.k])||0);});
+    t.damage+=(parseFloat(d.damage)||0);
+    t.hp+=(parseFloat(d.hp)||0);
   });
   return t;
 }
@@ -319,12 +349,28 @@ function cardBody(e,d,isSel){
     return valB - valA;
   });
 
+  const t = ((d.status||'equipped')==='parked' && !isSel) ? totals() : null;
+
+  let baseRows='';
+  const dmgV=parseFloat(d.damage)||0, hpV=parseFloat(d.hp)||0;
+  if(dmgV>0||hpV>0){
+    baseRows=`<div style="display:flex;gap:8px;font-size:10px;color:var(--text-secondary);padding:1px 0;margin-bottom:2px;">`
+      +(dmgV>0?`<span>⚔ <span style="font-weight:500;color:var(--text-primary);">${fmtVal(dmgV)}</span></span>`:'')
+      +(hpV>0?`<span>♥ <span style="font-weight:500;color:var(--text-primary);">${fmtVal(hpV)}</span></span>`:'')
+      +`</div>`;
+  }
+
   const rows=sortedSlots.map(k=>{
     const s=SS.find(ss=>ss.k===k),v=parseFloat((d.substats||{})[k])||0;
     if(!s) return '';
-    return `<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-secondary);padding:1px 0;"><span>${s.l}</span><span style="font-weight:500;color:${v>0?'var(--text-primary)':'var(--text-muted)'};">${v>0?fmtVal(v)+'%':'—'}</span></div>`;
+    let delta='';
+    if(t && v>0 && s.tgt){
+      const cur=fmtVal(t[k]),gap=fmtVal(s.tgt-cur);
+      if(gap>0) delta=`<span style="font-size:8px;color:#2ACC97;margin-left:3px;" title="Build needs ${gap}% more ${s.l}">▲</span>`;
+    }
+    return `<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-secondary);padding:1px 0;"><span>${s.l}${delta}</span><span style="font-weight:500;color:${v>0?'var(--text-primary)':'var(--text-muted)'};">${v>0?fmtVal(v)+'%':'—'}</span></div>`;
   }).join('');
-  return `<div style="padding:3px 9px 8px;">${rows}</div>`;
+  return `<div style="padding:3px 9px 8px;">${baseRows}${rows}</div>`;
 }
 
 function ssOptions(selectedKey){
@@ -379,17 +425,35 @@ function makeInlineEditor(e,d){
           ${rarList.map(r=>`<option value="${r}"${d.rarity===r?' selected':''}>${r||'— Rarity —'}</option>`).join('')}
         </select>
       </div>
+      <div style="margin-top:4px;display:grid;grid-template-columns:1fr 1fr;gap:4px;">
+        <div style="display:flex;align-items:center;gap:3px;">
+          <span style="font-size:10px;color:var(--text-muted);">⚔</span>
+          <input type="number" step="1" min="0" placeholder="DMG" value="${d.damage||0}" oninput="updField('${e.id}','damage',+this.value)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;text-align:right;">
+        </div>
+        <div style="display:flex;align-items:center;gap:3px;">
+          <span style="font-size:10px;color:var(--text-muted);">♥</span>
+          <input type="number" step="1" min="0" placeholder="HP" value="${d.hp||0}" oninput="updField('${e.id}','hp',+this.value)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;text-align:right;">
+        </div>
+      </div>
       <div style="font-size:10px;font-weight:500;color:var(--text-secondary);margin:6px 0 2px;">Substats</div>
       ${ssRows}
       ${swapHTML}`;
   }
 
+  const curStatus=(d.status||'equipped');
+  const showStatus=isMount||isPet||isParked;
+  const statusBtns=showStatus?`
+    <div style="display:flex;gap:4px;margin-top:4px;">
+      <button onclick="updField('${e.id}','status','equipped')" style="font-size:9px;padding:2px 6px;flex:1;${curStatus==='equipped'?'background:#2ACC97;color:#fff;border-color:#2ACC97;font-weight:600;':'opacity:0.55;'}">Equipped</button>
+      <button onclick="updField('${e.id}','status','parked')" style="font-size:9px;padding:2px 6px;flex:1;${curStatus==='parked'?'background:#666;color:#fff;border-color:#666;font-weight:600;':'opacity:0.55;'}">Parked</button>
+    </div>`:'';
   return `<div style="padding:2px 9px 8px;" onclick="event.stopPropagation();">
     ${content}
     <div style="display:flex;justify-content:space-between;margin-top:8px;gap:4px;">
       <button onclick="clearEnt('${e.id}')" style="font-size:9px;padding:2px 6px;flex:1;">Clear</button>
       <button onclick="closeEdit(event)" style="font-size:9px;padding:2px 6px;flex:1;">Close</button>
     </div>
+    ${statusBtns}
   </div>`;
 }
 
@@ -400,58 +464,100 @@ function renderCards(){
     const isStatEnt=['gear','mount','pet','parked'].includes(e.type);
     const title=isStatEnt&&d.name?d.name:e.label;
     const lv=d.level?` Lv.${d.level}`:'';
+    const isParked=(d.status||'equipped')==='parked';
+    const statusFooter=isStatEnt
+      ?(isParked
+        ?`<div style="position:absolute;bottom:0;left:0;right:0;height:14px;background:#1e1e1e;display:flex;align-items:center;justify-content:center;"><span style="font-size:7px;letter-spacing:1px;font-weight:600;color:#666;">PARKED</span></div>`
+        :`<div style="position:absolute;bottom:0;left:0;right:0;height:14px;background:#0f2a1a;display:flex;align-items:center;justify-content:center;"><span style="font-size:7px;letter-spacing:1px;font-weight:600;color:#2ACC97;">EQUIPPED</span></div>`)
+      :'';
     let subtitle='';
     if(e.type==='gear'&&d.name) subtitle=e.label+(d.rarity?` · ${d.rarity}`:'');
     else if(e.type==='gear'&&d.rarity) subtitle=d.rarity;
     else if((e.type==='mount'||e.type==='pet'||e.type==='parked')&&(d.rarity||d.level)) subtitle=`${d.rarity||''}${lv}`;
     const tcol=d.rarity&&RARITY_COL[d.rarity]?RARITY_COL[d.rarity]:col;
     
-    // Dim parked items visually unless selected
-    const opacityStyle = (e.type === 'parked' && !isSel) ? 'opacity: 0.65;' : '';
+    const opacityStyle = (isParked && !isSel) ? 'opacity: 0.65;' : '';
 
     let calcHeight = e.h;
     if(isSel) {
       if(e.type==='skills') calcHeight = 210;
       else if(e.type==='techtree') calcHeight = 240;
-      else if(e.type==='gear') calcHeight = 188;
-      else calcHeight = 224; // Pets/Mounts/Parked need more room for the Swap button
+      else if(e.type==='gear') calcHeight = 218;
+      else calcHeight = 254;
     }
 
-    h+=`<div class="ecard ${e.type}${isSel?' sel':''}" style="left:${e.x}px;top:${e.y}px;width:${e.w}px;height:${calcHeight}px;--theme-color:${tcol};${opacityStyle}" onclick="selEnt('${e.id}')">
+    const pos=state.positions&&state.positions[e.id]?state.positions[e.id]:{x:e.x,y:e.y};
+    h+=`<div class="ecard ${e.type}${isSel?' sel':''}" data-eid="${e.id}" style="left:${pos.x}px;top:${pos.y}px;width:${e.w}px;height:${calcHeight}px;--theme-color:${tcol};${opacityStyle};cursor:pointer;" onmousedown="startDrag(event,'${e.id}')">
       <div class="etop" style="background:${tcol};"></div>
       <div style="padding:5px 9px 2px;display:flex;align-items:flex-start;gap:5px;">
-        <i class="ti ${e.icon}" style="font-size:12px;color:${tcol};margin-top:1px;flex-shrink:0;" aria-hidden="true"></i>
+        ${renderIcon(itemIcon(e,d),tcol)}
         <div style="overflow:hidden;min-width:0;">
           <div style="font-size:11px;font-weight:500;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${title}${!d.name&&e.type==='gear'&&lv?lv:''}</div>
           ${subtitle?`<div style="font-size:9px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${subtitle}</div>`:''}
         </div>
       </div>
       ${cardBody(e,d,isSel)}
+      ${statusFooter}
     </div>`;
   });
   const isSumSel=selId==='summary';
-  const bars=SS.filter(s=>s.tgt).map(s=>{
-    const v=fmtVal(t[s.k]),pct=Math.min(100,(v/s.tgt)*100),met=v>=s.tgt,bc=met?'#2ACC97':v>s.tgt*0.55?'#DCA63B':'#E96B3E';
-    return `<div style="display:flex;align-items:center;gap:8px;margin:5px 0;">
-      <span style="font-size:11px;color:var(--text-secondary);width:90px;flex-shrink:0;">${s.l}</span>
-      <div style="flex:1;height:4px;background:var(--surface-0);border-radius:2px;overflow:hidden;"><div style="width:${pct}%;height:100%;background:${bc};border-radius:2px;transition:width 0.3s;"></div></div>
-      <span style="font-size:11px;font-weight:500;color:${met?'#2ACC97':'var(--text-primary)'};width:46px;text-align:right;">${v}%${met?' ✓':''}</span>
-      <span style="font-size:10px;color:var(--text-muted);width:70px;">${s.tl}</span>
+  // Split substats: those with a target get horizontal rows; the rest get a vertical bar chart
+  const mainSS=SS.filter(s=>s.tgt);
+  const restSS=SS.filter(s=>!s.tgt);
+  const mainRows=mainSS.map(s=>{
+    const v=parseFloat(t[s.k])||0;
+    const pct=Math.min(100,(v/s.tgt)*100);
+    const met=v>=s.tgt;
+    const bc=met?'#2ACC97':v>s.tgt*0.55?'#DCA63B':'#E96B3E';
+    return `<div style="display:grid;grid-template-columns:90px 1fr 48px 60px;gap:6px;align-items:center;padding:4px 0;border-bottom:0.5px solid var(--border);">
+      <span style="font-size:11px;color:var(--text-secondary);">${s.l}</span>
+      <div style="height:4px;background:var(--surface-0);border-radius:2px;overflow:hidden;"><div style="width:${pct}%;height:100%;background:${bc};border-radius:2px;transition:width 0.3s;"></div></div>
+      <span style="font-size:11px;font-weight:500;color:${met?'#2ACC97':'var(--text-primary)'};text-align:right;">${fmtVal(v)}%${met?' ✓':''}</span>
+      <span style="font-size:10px;color:var(--text-muted);">${s.tl}</span>
     </div>`;
   }).join('');
-  h+=`<div class="ecard summary${isSumSel?' sel':''}" style="left:${SUM.x}px;top:${SUM.y}px;width:${SUM.w}px;height:${SUM.h}px;" onclick="selEnt('summary')">
+  const CHART_H=52;
+  const restVals=restSS.map(s=>parseFloat(t[s.k])||0);
+  const globalMax=Math.max(...restVals,1);
+  const vertBars=restSS.map((s,i)=>{
+    const v=restVals[i];
+    const pct=Math.min(100,(v/globalMax)*100);
+    const barH=Math.max(v>0?2:0,Math.round((pct/100)*CHART_H));
+    const abbr=s.l.replace(' Chance','C').replace(' Speed','Spd').replace(' DMG','D').replace(' Regen','Rgn').replace('Ranged','Rng').replace('Melee','Mle').replace('Skill','Skl');
+    return `<div style="display:flex;flex-direction:column;align-items:center;gap:1px;flex:1;min-width:0;">
+      <span style="font-size:7px;font-weight:500;color:var(--text-primary);">${v>0?fmtVal(v):''}</span>
+      <div style="height:${CHART_H}px;display:flex;align-items:flex-end;width:100%;">
+        <div style="width:100%;height:${barH}px;background:#378ADD;border-radius:2px 2px 0 0;transition:height 0.3s;"></div>
+      </div>
+      <div style="height:1px;width:100%;background:var(--border);"></div>
+      <span style="font-size:7px;color:var(--text-muted);text-align:center;line-height:1.1;">${abbr}</span>
+    </div>`;
+  }).join('');
+  const sumPos=state.positions&&state.positions["summary"]?state.positions["summary"]:{x:SUM.x,y:SUM.y};
+  h+=`<div class="ecard summary${isSumSel?' sel':''}" data-eid="summary" style="left:${sumPos.x}px;top:${sumPos.y}px;width:${SUM.w}px;height:${SUM.h}px;cursor:pointer;" onmousedown="startDrag(event,'summary')">
     <div class="etop" style="background:#378ADD;"></div>
-    <div style="padding:6px 12px 3px;display:flex;align-items:center;gap:5px;">
-      <i class="ti ti-chart-bar" style="font-size:12px;color:#378ADD;" aria-hidden="true"></i>
-      <span style="font-size:11px;font-weight:500;color:var(--text-primary);">Build summary</span>
+    <div style="padding:6px 12px 4px;display:flex;align-items:center;justify-content:space-between;">
+      <div style="display:flex;align-items:center;gap:5px;">
+        <i class="ti ti-chart-bar" style="font-size:12px;color:#378ADD;" aria-hidden="true"></i>
+        <span style="font-size:11px;font-weight:500;color:var(--text-primary);">Build summary</span>
+      </div>
+      <div style="display:flex;gap:10px;font-size:10px;color:var(--text-secondary);">
+        <span>⚔ <span style="font-weight:600;color:var(--text-primary);">${fmtVal(t.damage)||'—'}</span></span>
+        <span>♥ <span style="font-weight:600;color:var(--text-primary);">${fmtVal(t.hp)||'—'}</span></span>
+      </div>
     </div>
-    <div style="padding:3px 12px 10px;">${bars}</div>
+    <div style="padding:0 12px 4px;">${mainRows}</div>
+    <div style="padding:4px 8px 8px;display:flex;gap:3px;align-items:flex-end;">${vertBars}</div>
   </div>`;
   document.getElementById('cards').innerHTML=h;
 }
 
 function renderSummaryRows(){
   const t=totals();let h='';
+  h+=`<div style="display:flex;gap:20px;padding:6px 0 8px;border-bottom:0.5px solid var(--border);margin-bottom:4px;">
+    <div style="font-size:12px;color:var(--text-secondary);">⚔ Total DMG <span style="font-weight:600;color:var(--text-primary);margin-left:4px;">${fmtVal(t.damage)}</span></div>
+    <div style="font-size:12px;color:var(--text-secondary);">♥ Total HP <span style="font-weight:600;color:var(--text-primary);margin-left:4px;">${fmtVal(t.hp)}</span></div>
+  </div>`;
   SS.forEach(s=>{
     const v=fmtVal(t[s.k]),pct=s.tgt?Math.min(100,(v/s.tgt)*100):Math.min(100,(v/s.max)*50),met=s.tgt&&v>=s.tgt,bc=met?'#2ACC97':s.tgt&&v>s.tgt*0.55?'#DCA63B':'#378ADD';
     h+=`<div style="display:grid;grid-template-columns:110px 1fr 56px ${s.tgt?'80px':'0'};gap:8px;align-items:center;padding:5px 0;border-bottom:0.5px solid var(--border);">
@@ -483,17 +589,19 @@ function updSlot(id,slotIdx,newKey){
   const oldKey=d.activeSlots[slotIdx];
   d.substats[oldKey]=0;
   d.activeSlots[slotIdx]=newKey;
-  renderCards();renderSummaryRows();queueSave();
+  renderCards();queueSave();
 }
 
 function updStatVal(id,key,val){
   state[id].substats[key]=isNaN(val)?0:val;
-  renderSummaryRows();queueSave();
+  queueSave();
 }
 
 function updField(id,f,v){
   state[id][f]=v;
-  renderCards();queueSave();
+  renderCards();
+  
+  queueSave();
 }
 
 function updSkill(i,f,v){
@@ -510,7 +618,7 @@ function updTechNode(nid,checked){
 
 function clearEnt(id){
   state[id]=defData(id);
-  renderCards();renderSummaryRows();queueSave();
+  renderCards();queueSave();
 }
 
 function swapEnts(id1){
@@ -523,8 +631,29 @@ function swapEnts(id1){
   state[id2] = temp;
   
   renderCards();
-  renderSummaryRows();
+  
   saveAll();
+}
+
+function exportJSON(){
+  const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`forge-master-build-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();URL.revokeObjectURL(a.href);
+}
+function importJSON(ev){
+  const file=ev.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(){
+    try{
+      const imported=JSON.parse(reader.result);
+      ENTS.forEach(e=>{if(imported[e.id])state[e.id]=imported[e.id];});
+      renderCards();saveAll();
+    }catch(err){alert('Invalid JSON file');}
+  };
+  reader.readAsText(file);
+  ev.target.value='';
 }
 
 document.addEventListener('click',function(e){
@@ -537,7 +666,52 @@ document.addEventListener('keydown',function(e){
   if(e.key==='Escape'&&selId){selId=null;renderCards();}
 });
 
-async function init(){initState();await loadDB();drawLines();renderCards();renderSummaryRows();}
+// --- Free drag (top third) / click to edit (bottom two-thirds) ---
+let _drag=null;
+function startDrag(ev,id){
+  if(ev.button!==0)return;
+  const rect=ev.currentTarget.getBoundingClientRect();
+  const relY=ev.clientY-rect.top;
+  const isTopThird=relY<=rect.height/3;
+  const e=ENTS.find(e=>e.id===id);
+  const defPos=e?{x:e.x,y:e.y}:(id==='summary'?{x:SUM.x,y:SUM.y}:{x:0,y:0});
+  const cur=(state.positions&&state.positions[id])||defPos;
+  _drag={id,startX:ev.clientX,startY:ev.clientY,origX:cur.x,origY:cur.y,moved:false,topThird:isTopThird};
+}
+document.addEventListener('mousemove',function(ev){
+  if(!_drag)return;
+  const dx=ev.clientX-_drag.startX,dy=ev.clientY-_drag.startY;
+  if(!_drag.moved&&Math.abs(dx)<5&&Math.abs(dy)<5)return;
+  _drag.moved=true;
+  const newX=Math.max(0,_drag.origX+dx),newY=Math.max(0,_drag.origY+dy);
+  const el=document.querySelector(`[data-eid="${_drag.id}"]`);
+  if(el){el.style.left=newX+'px';el.style.top=newY+'px';}
+  if(!state.positions)state.positions={};
+  state.positions[_drag.id]={x:newX,y:newY};
+});
+document.addEventListener('mouseup',function(ev){
+  if(!_drag)return;
+  if(_drag.moved){
+    if(!state.positions)state.positions={};
+    state.positions[_drag.id]={
+      x:Math.max(0,_drag.origX+(ev.clientX-_drag.startX)),
+      y:Math.max(0,_drag.origY+(ev.clientY-_drag.startY))
+    };
+    _drag=null;
+    drawLines();queueSave();
+  } else {
+    const id=_drag.id;
+    const wasTopThird=_drag.topThird;
+    _drag=null;
+    if(!wasTopThird) selEnt(id); // bottom two-thirds tap → open editor
+  }
+});
+function resetLayout(){
+  state.positions={};
+  renderCards();drawLines();queueSave();
+}
+
+async function init(){initState();await loadDB();drawLines();renderCards();}
 init();
 </script>
 </body>
