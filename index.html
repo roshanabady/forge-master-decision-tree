@@ -245,7 +245,7 @@ function queueSave(){clearTimeout(_saveTimer);_saveTimer=setTimeout(()=>{if(db)s
 
 function defData(id){
   const e=ENTS.find(e=>e.id===id);
-  if(e.type==='skills') return {slots:Array(5).fill(0).map(()=>({name:'',level:1,stype:'Active'}))};
+  if(e.type==='skills') return {slots:Array(5).fill(0).map(()=>({name:'',level:1,stype:'Active'})),damage:0,hp:0};
   if(e.type==='techtree') return {nodes:{}};
   const d={name:'',imageUrl:'',level:1,rarity:'',damage:0,hp:0,status:e.type==='parked'?'parked':'equipped',activeSlots:[SS[0].k,SS[1].k],substats:{}};
   SS.forEach(s=>d.substats[s.k]=0);
@@ -317,6 +317,12 @@ async function saveAll(){
 }
 
 function fmtVal(v){return Math.round(v*10)/10;}
+function fmtBig(v){
+  if(v>=1e9) return (v/1e9).toFixed(1).replace(/\.0$/,'')+'b';
+  if(v>=1e6) return (v/1e6).toFixed(1).replace(/\.0$/,'')+'m';
+  if(v>=1e3) return (v/1e3).toFixed(1).replace(/\.0$/,'')+'k';
+  return Math.round(v*10)/10;
+}
 
 function entPos(e){
   const p=state.positions&&state.positions[e.id];
@@ -334,9 +340,10 @@ function drawLines(){
 
 function totals(){
   const t={damage:0,hp:0};SS.forEach(s=>t[s.k]=0);
-  ENTS.filter(e=>['gear','mount','pet','parked'].includes(e.type)).forEach(e=>{
+  ENTS.filter(e=>['gear','mount','pet','parked','skills'].includes(e.type)).forEach(e=>{
     const d=state[e.id];
-    if(!d || d.status==='parked') return;
+    if(!d) return;
+    if(e.type!=='skills' && d.status==='parked') return;
     if(d.substats)SS.forEach(s=>{t[s.k]+=(parseFloat(d.substats[s.k])||0);});
     t.damage+=(parseFloat(d.damage)||0);
     t.hp+=(parseFloat(d.hp)||0);
@@ -350,7 +357,9 @@ function cardBody(e,d,isSel){
   if(e.type==='skills'){
     const slots=d.slots||[],filled=slots.filter(s=>s.name&&s.name.trim()).length;
     const names=slots.filter(s=>s.name&&s.name.trim()).slice(0,3).map(s=>`<div style="font-size:10px;color:var(--text-secondary);padding:1px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${s.name} <span style="font-weight:500;color:var(--text-primary);">Lv${s.level}</span></div>`).join('');
-    return `<div style="padding:3px 9px 8px;"><div style="font-size:10px;color:var(--text-muted);margin-bottom:2px;">${filled}/5 configured</div>${names||'<div style="font-size:10px;color:var(--text-muted);font-style:italic;">tap to edit</div>'}</div>`;
+    const dmgV=parseFloat(d.damage)||0,hpV=parseFloat(d.hp)||0;
+    const statsRow=(dmgV||hpV)?`<div style="display:flex;gap:8px;font-size:10px;color:var(--text-secondary);padding:1px 0;margin-bottom:2px;">${dmgV?`<span>⚔ <span style="font-weight:500;color:var(--text-primary);">${fmtBig(dmgV)}</span></span>`:''} ${hpV?`<span>♥ <span style="font-weight:500;color:var(--text-primary);">${fmtBig(hpV)}</span></span>`:''}</div>`:'';
+    return `<div style="padding:3px 9px 8px;">${statsRow}<div style="font-size:10px;color:var(--text-muted);margin-bottom:2px;">${filled}/5 configured</div>${names||'<div style="font-size:10px;color:var(--text-muted);font-style:italic;">tap to edit</div>'}</div>`;
   }
   if(e.type==='techtree'){
     const nodes=d.nodes||{},unlocked=TN.filter(n=>nodes[n.id]).length;
@@ -372,8 +381,8 @@ function cardBody(e,d,isSel){
   const dmgV=parseFloat(d.damage)||0, hpV=parseFloat(d.hp)||0;
   if(dmgV>0||hpV>0){
     baseRows=`<div style="display:flex;gap:8px;font-size:10px;color:var(--text-secondary);padding:1px 0;margin-bottom:2px;">`
-      +(dmgV>0?`<span>⚔ <span style="font-weight:500;color:var(--text-primary);">${fmtVal(dmgV)}</span></span>`:'')
-      +(hpV>0?`<span>♥ <span style="font-weight:500;color:var(--text-primary);">${fmtVal(hpV)}</span></span>`:'')
+      +(dmgV>0?`<span>⚔ <span style="font-weight:500;color:var(--text-primary);">${fmtBig(dmgV)}</span></span>`:'')
+      +(hpV>0?`<span>♥ <span style="font-weight:500;color:var(--text-primary);">${fmtBig(hpV)}</span></span>`:'')
       +`</div>`;
   }
 
@@ -399,7 +408,17 @@ function makeInlineEditor(e,d){
   const isMount=e.type==='mount', isPet=e.type==='pet', isParked=e.type==='parked';
   if(e.type==='skills'){
     const slots=d.slots||Array(5).fill(0).map(()=>({name:'',level:1,stype:'Active'}));
-    content=`<div style="font-size:10px;font-weight:500;color:var(--text-secondary);margin:4px 0 2px;">Slots</div>`
+    content=`<div style="margin-top:4px;display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:6px;">
+        <div style="display:flex;align-items:center;gap:3px;">
+          <span style="font-size:10px;color:var(--text-muted);">⚔</span>
+          <input type="number" step="1" min="0" placeholder="DMG" value="${d.damage||0}" oninput="updField('skills','damage',+this.value)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;text-align:right;">
+        </div>
+        <div style="display:flex;align-items:center;gap:3px;">
+          <span style="font-size:10px;color:var(--text-muted);">♥</span>
+          <input type="number" step="1" min="0" placeholder="HP" value="${d.hp||0}" oninput="updField('skills','hp',+this.value)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;text-align:right;">
+        </div>
+      </div>
+      <div style="font-size:10px;font-weight:500;color:var(--text-secondary);margin:4px 0 2px;">Slots</div>`
       +slots.map((sk,i)=>`<div style="display:grid;grid-template-columns:1fr 34px;gap:4px;margin:3px 0;align-items:center;">
         <input type="text" placeholder="Skill ${i+1}" value="${sk.name||''}" onchange="updSkill(${i},'name',this.value)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;">
         <input type="number" value="${sk.level||1}" min="1" max="99" onchange="updSkill(${i},'level',+this.value)" style="font-size:10px;padding:2px 2px;text-align:center;">
@@ -553,8 +572,8 @@ function renderCards(){
         <span style="font-size:11px;font-weight:500;color:var(--text-primary);">Build summary</span>
       </div>
       <div style="display:flex;gap:10px;font-size:10px;color:var(--text-secondary);">
-        <span>⚔ <span style="font-weight:600;color:var(--text-primary);">${fmtVal(t.damage)||'—'}</span></span>
-        <span>♥ <span style="font-weight:600;color:var(--text-primary);">${fmtVal(t.hp)||'—'}</span></span>
+        <span>⚔ <span style="font-weight:600;color:var(--text-primary);">${fmtBig(t.damage)||'—'}</span></span>
+        <span>♥ <span style="font-weight:600;color:var(--text-primary);">${fmtBig(t.hp)||'—'}</span></span>
       </div>
     </div>
     <div style="padding:0 12px 4px;">${mainRows}</div>
@@ -566,8 +585,8 @@ function renderCards(){
 function renderSummaryRows(){
   const t=totals();let h='';
   h+=`<div style="display:flex;gap:20px;padding:6px 0 8px;border-bottom:0.5px solid var(--border);margin-bottom:4px;">
-    <div style="font-size:12px;color:var(--text-secondary);">⚔ Total DMG <span style="font-weight:600;color:var(--text-primary);margin-left:4px;">${fmtVal(t.damage)}</span></div>
-    <div style="font-size:12px;color:var(--text-secondary);">♥ Total HP <span style="font-weight:600;color:var(--text-primary);margin-left:4px;">${fmtVal(t.hp)}</span></div>
+    <div style="font-size:12px;color:var(--text-secondary);">⚔ Total DMG <span style="font-weight:600;color:var(--text-primary);margin-left:4px;">${fmtBig(t.damage)}</span></div>
+    <div style="font-size:12px;color:var(--text-secondary);">♥ Total HP <span style="font-weight:600;color:var(--text-primary);margin-left:4px;">${fmtBig(t.hp)}</span></div>
   </div>`;
   SS.forEach(s=>{
     const v=fmtVal(t[s.k]),pct=s.tgt?Math.min(100,(v/s.tgt)*100):Math.min(100,(v/s.max)*50),met=s.tgt&&v>=s.tgt,bc=met?'#2ACC97':s.tgt&&v>s.tgt*0.55?'#DCA63B':'#378ADD';
