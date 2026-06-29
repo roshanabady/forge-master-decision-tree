@@ -464,9 +464,11 @@ function renderSummaryRows(){
   document.getElementById('summary-rows').innerHTML=h;
 }
 
+let _justSelected=false;
 function selEnt(id){
   if(selId === id) return;
   selId=id;
+  _justSelected=true;
   renderCards();
 }
 
@@ -526,6 +528,7 @@ function swapEnts(id1){
 }
 
 document.addEventListener('click',function(e){
+  if(_justSelected){_justSelected=false;return;}
   if(!selId) return;
   if(e.target.closest('.ecard.sel')) return;
   selId=null;renderCards();
