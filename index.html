@@ -1,4 +1,10 @@
-<h2 class="sr-only">Forge Master build tracker with dropdown substat selectors and text input values</h2>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Forge Master — Build Tracker</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.6.0/tabler-icons.min.css" crossorigin="anonymous">
 <style>
 :root {
   --surface-0: #121212;
@@ -84,6 +90,8 @@ input[type="checkbox"] {
 .ss-row { display: grid; grid-template-columns: 1fr 58px 12px; gap: 4px; align-items: center; margin: 4px 0; }
 </style>
 
+</head>
+<body>
 <div style="padding:1rem 1rem; min-height: 100vh; user-select: none;">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding:0 4px;max-width: 680px;">
   <span style="font-size:14px;font-weight:500;color:var(--text-primary);">Build tracker — Forge Master</span>
@@ -211,7 +219,8 @@ const SEED={
   inv8:     {name:'Serpent',             level:1,   rarity:'Legendary',    slots:['dmg','doubleChance'],         substats:{dmg:12.5,          doubleChance:16.5}},
 };
 
-let state={}, selId=null, db=null;
+let state={}, selId=null, db=null, _saveTimer=null;
+function queueSave(){clearTimeout(_saveTimer);_saveTimer=setTimeout(()=>{if(db)saveAll();},800);}
 
 function defData(id){
   const e=ENTS.find(e=>e.id===id);
@@ -472,33 +481,34 @@ function updSlot(id,slotIdx,newKey){
   const oldKey=d.activeSlots[slotIdx];
   d.substats[oldKey]=0;
   d.activeSlots[slotIdx]=newKey;
-  renderCards();renderSummaryRows();
+  renderCards();renderSummaryRows();queueSave();
 }
 
 function updStatVal(id,key,val){
   state[id].substats[key]=isNaN(val)?0:val;
-  renderSummaryRows(); 
+  renderSummaryRows();queueSave();
 }
 
 function updField(id,f,v){
   state[id][f]=v;
-  renderCards();
+  renderCards();queueSave();
 }
 
 function updSkill(i,f,v){
   if(!state.skills.slots) state.skills.slots=Array(5).fill(0).map(()=>({name:'',level:1,stype:'Active'}));
   state.skills.slots[i][f]=v;
-  renderCards();
+  renderCards();queueSave();
 }
 
 function updTechNode(nid,checked){
   if(!state.techtree.nodes) state.techtree.nodes={};
   state.techtree.nodes[nid]=checked;
+  queueSave();
 }
 
 function clearEnt(id){
   state[id]=defData(id);
-  renderCards();renderSummaryRows();
+  renderCards();renderSummaryRows();queueSave();
 }
 
 function swapEnts(id1){
@@ -515,6 +525,17 @@ function swapEnts(id1){
   saveAll();
 }
 
+document.addEventListener('click',function(e){
+  if(!selId) return;
+  if(e.target.closest('.ecard.sel')) return;
+  selId=null;renderCards();
+});
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'&&selId){selId=null;renderCards();}
+});
+
 async function init(){initState();await loadDB();drawLines();renderCards();renderSummaryRows();}
 init();
 </script>
+</body>
+</html>
