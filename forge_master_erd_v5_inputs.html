@@ -1,0 +1,520 @@
+<h2 class="sr-only">Forge Master build tracker with dropdown substat selectors and text input values</h2>
+<style>
+:root {
+  --surface-0: #121212;
+  --surface-1: #1a1a1a;
+  --surface-2: #242424;
+  --border: #333333;
+  --border-strong: #444444;
+  --text-primary: #ffffff;
+  --text-secondary: #b3b3b3;
+  --text-muted: #777777;
+  --radius: 8px;
+}
+
+body {
+  margin: 0;
+  background: var(--surface-0);
+  color: var(--text-primary);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+/* Global input styling adapting to context variables */
+input[type="text"],
+input[type="number"],
+select {
+  background: var(--surface-0) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 6px;
+  padding: 4px 6px;
+  outline: none;
+}
+input[type="text"]:focus,
+input[type="number"]:focus,
+select:focus {
+  border-color: var(--theme-color, #378ADD) !important;
+}
+button {
+  background: var(--surface-1) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+button:hover {
+  background: var(--surface-2) !important;
+  border-color: var(--border-strong) !important;
+}
+input[type="checkbox"] {
+  accent-color: var(--theme-color, #378ADD);
+}
+
+.ecard {
+  position: absolute;
+  background: var(--surface-2);
+  border: 0.5px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.12s, height 0.2s ease-out, opacity 0.2s;
+  z-index: 10;
+}
+.ecard:hover { border-color: var(--border-strong); }
+.ecard.sel { 
+  border: 1.5px solid var(--theme-color, #378ADD); 
+  z-index: 50; 
+  cursor: default;
+  opacity: 1 !important;
+}
+.etop { height: 2px; width: 100%; }
+.tcheck { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-secondary); margin: 3px 0; cursor: pointer; }
+.ss-row { display: grid; grid-template-columns: 1fr 58px 12px; gap: 4px; align-items: center; margin: 4px 0; }
+</style>
+
+<div style="padding:1rem 1rem; min-height: 100vh; user-select: none;">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding:0 4px;max-width: 680px;">
+  <span style="font-size:14px;font-weight:500;color:var(--text-primary);">Build tracker — Forge Master</span>
+  <div style="display:flex;align-items:center;gap:10px;">
+    <div style="display:flex;gap:8px;font-size:11px;color:var(--text-muted);">
+      <span><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#968DF2;margin-right:3px;vertical-align:middle;"></span>Gear</span>
+      <span><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#2ACC97;margin-right:3px;vertical-align:middle;"></span>Mount</span>
+      <span><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#E96B3E;margin-right:3px;vertical-align:middle;"></span>Pet</span>
+      <span><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#DCA63B;margin-right:3px;vertical-align:middle;"></span>Skills</span>
+      <span><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#2982D9;margin-right:3px;vertical-align:middle;"></span>Tech</span>
+    </div>
+    <button id="save-btn" onclick="saveAll()" style="font-size:11px;padding:4px 10px;"><i class="ti ti-device-floppy" aria-hidden="true"></i> Save</button>
+  </div>
+</div>
+
+<div id="canvas" style="position:relative;width:680px;height:1320px;background:var(--surface-1);border:0.5px solid var(--border);border-radius:12px;overflow:hidden;">
+  <svg id="svg-lines" style="position:absolute;top:0;left:0;width:680px;height:1320px;pointer-events:none;"></svg>
+  <div id="cards"></div>
+</div>
+
+<div style="margin-top:12px;max-width: 638px;background:var(--surface-2);border:0.5px solid var(--border);border-radius:12px;padding:1rem 1.25rem;">
+  <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:10px;">Substat totals — gear + mounts + pets</div>
+  <div id="summary-rows"></div>
+</div>
+</div>
+
+<script>
+const SS=[
+  {k:'atkSpeed',    l:'Atk Speed',    max:40},
+  {k:'doubleChance',l:'Double Chance',max:40,  tgt:100, tl:'cap 100%'},
+  {k:'lifesteal',   l:'Lifesteal',    max:20,  tgt:40,  tl:'floor 40%'},
+  {k:'critChance',  l:'Crit Chance',  max:12},
+  {k:'critDmg',     l:'Crit DMG',     max:100},
+  {k:'dmg',         l:'DMG',          max:15},
+  {k:'rangedDmg',   l:'Ranged DMG',   max:15},
+  {k:'meleeDmg',    l:'Melee DMG',    max:50},
+  {k:'skillDmg',    l:'Skill DMG',    max:30},
+  {k:'health',      l:'Health',       max:15},
+  {k:'healthRegen', l:'Health Regen', max:6},
+  {k:'block',       l:'Block',        max:5},
+  {k:'cooldown',    l:'Skill CD',     max:7},
+];
+SS[0].tgt=100; SS[0].tl='target 100%';
+
+const TN=[
+  {id:'w1',l:'Weapon I',   g:'Weapon'},{id:'w2',l:'Weapon II',  g:'Weapon'},{id:'w3',l:'Weapon III', g:'Weapon'},
+  {id:'g1',l:'Gloves I',   g:'Gloves'},{id:'g2',l:'Gloves II',  g:'Gloves'},{id:'g3',l:'Gloves III', g:'Gloves'},
+  {id:'hm',l:'Helmet mastery',g:'Helmet/Body'},{id:'bm',l:'Body mastery',g:'Helmet/Body'},
+];
+
+const SK_TYPES=['Active','Passive','Ultimate'];
+const GEAR_RARITIES=['','Space','Interstellar','Multiverse'];
+const PARKED_RARITIES=['Common','Uncommon','Rare','Epic','Legendary','Mythic','Ultimate'];
+
+const RARITY_COL={
+  Space:'#E96B3E',
+  Interstellar:'#D946EF', 
+  Multiverse:'#2DD4BF',   
+  Common:'#D1D5DB',       
+  Uncommon:'#2ACC97',
+  Rare:'#4FA3F7',
+  Epic:'#968DF2',
+  Legendary:'#DCA63B',
+  Mythic:'#F05B5A',
+  Ultimate:'#F05B5A'
+};
+const COL={gear:'#968DF2',mount:'#2ACC97',pet:'#E96B3E',skills:'#DCA63B',techtree:'#2982D9',parked:'#666666'};
+
+const ENTS=[
+  {id:'weapon',  label:'Weapon',         type:'gear',     icon:'ti-sword',       x:10,  y:10,  w:145,h:88},
+  {id:'gloves',  label:'Gloves',         type:'gear',     icon:'ti-hand-finger', x:10,  y:106, w:145,h:88},
+  {id:'helmet',  label:'Helmet',         type:'gear',     icon:'ti-crown',       x:10,  y:202, w:145,h:88},
+  {id:'body',    label:'Body',           type:'gear',     icon:'ti-shield',      x:10,  y:298, w:145,h:88},
+  {id:'necklace',label:'Necklace',       type:'gear',     icon:'ti-link',        x:10,  y:394, w:145,h:88},
+  {id:'ring',    label:'Ring',           type:'gear',     icon:'ti-circle',      x:10,  y:490, w:145,h:88},
+  {id:'boots',   label:'Boots',          type:'gear',     icon:'ti-arrow-up',    x:10,  y:586, w:145,h:88},
+  {id:'pelvic',  label:'Pelvic Harness', type:'gear',     icon:'ti-adjustments', x:10,  y:682, w:145,h:88},
+  
+  {id:'pet1',    label:'Pet 1',          type:'pet',      icon:'ti-heart',       x:525, y:10,  w:145,h:88},
+  {id:'pet2',    label:'Pet 2',          type:'pet',      icon:'ti-heart',       x:525, y:106, w:145,h:88},
+  {id:'pet3',    label:'Pet 3',          type:'pet',      icon:'ti-heart',       x:525, y:202, w:145,h:88},
+  {id:'mount1',  label:'Mount 1',        type:'mount',    icon:'ti-star',        x:525, y:298, w:145,h:110},
+  {id:'mount2',  label:'Mount 2',        type:'mount',    icon:'ti-star-half',   x:525, y:418, w:145,h:110},
+  
+  // New Inventory Slots
+  {id:'inv1',    label:'Inventory 1',    type:'parked',   icon:'ti-archive',     x:525, y:538, w:145,h:88},
+  {id:'inv2',    label:'Inventory 2',    type:'parked',   icon:'ti-archive',     x:525, y:634, w:145,h:88},
+  {id:'inv3',    label:'Inventory 3',    type:'parked',   icon:'ti-archive',     x:525, y:730, w:145,h:88},
+  {id:'inv4',    label:'Inventory 4',    type:'parked',   icon:'ti-archive',     x:525, y:826, w:145,h:88},
+  {id:'inv5',    label:'Inventory 5',    type:'parked',   icon:'ti-archive',     x:525, y:922, w:145,h:88},
+  {id:'inv6',    label:'Inventory 6',    type:'parked',   icon:'ti-archive',     x:525, y:1018, w:145,h:88},
+  {id:'inv7',    label:'Inventory 7',    type:'parked',   icon:'ti-archive',     x:525, y:1114, w:145,h:88},
+  {id:'inv8',    label:'Inventory 8',    type:'parked',   icon:'ti-archive',     x:525, y:1210, w:145,h:88},
+  
+  {id:'skills',  label:'Skills',         type:'skills',   icon:'ti-bolt',        x:175, y:420, w:160,h:116},
+  {id:'techtree',label:'Tech Tree',      type:'techtree', icon:'ti-sitemap',     x:349, y:420, w:160,h:116},
+];
+const SUM={x:175,y:158,w:334,h:230};
+
+const SEED={
+  weapon:   {name:'Plasma Rifle',        level:81,  rarity:'Interstellar', slots:['doubleChance','healthRegen'], substats:{doubleChance:16.2, healthRegen:3.65}},
+  gloves:   {name:'Rainbow Gloves',      level:10,  rarity:'Multiverse',   slots:['lifesteal','health'],         substats:{lifesteal:19.7,    health:10.1}},
+  helmet:   {name:'Mask',                level:17,  rarity:'Multiverse',   slots:['atkSpeed','rangedDmg'],       substats:{atkSpeed:33,       rangedDmg:11.7}},
+  body:     {name:'Plasma Suit',         level:112, rarity:'Interstellar', slots:['doubleChance','cooldown'],    substats:{doubleChance:19.3, cooldown:2.46}},
+  necklace: {name:'Psi Choker',          level:45,  rarity:'Interstellar', slots:['cooldown','lifesteal'],       substats:{cooldown:4.02,     lifesteal:19.6}},
+  ring:     {name:'Connection Ring',     level:25,  rarity:'Multiverse',   slots:['health','doubleChance'],      substats:{health:12.7,       doubleChance:17.6}},
+  boots:    {name:'Ethereal Socks',      level:49,  rarity:'Multiverse',   slots:['lifesteal','critChance'],     substats:{lifesteal:6.71,    critChance:6.33}},
+  pelvic:   {name:'Pelvic Synchronizer', level:106, rarity:'Interstellar', slots:['doubleChance','lifesteal'],   substats:{doubleChance:18.6, lifesteal:16}},
+  
+  pet1:     {name:'Electry',             level:16,  rarity:'Ultimate',     slots:['doubleChance','meleeDmg'],    substats:{doubleChance:12.9, meleeDmg:1.22}},
+  pet2:     {name:'Electry',             level:11,  rarity:'Ultimate',     slots:['doubleChance','critDmg'],     substats:{doubleChance:18.7, critDmg:12}},
+  pet3:     {name:'Serpent',             level:20,  rarity:'Legendary',    slots:['cooldown','doubleChance'],    substats:{cooldown:6.46,     doubleChance:14.2}},
+  
+  mount1:   {name:'Lily Pad',            level:12,  rarity:'Common',       slots:['health','atkSpeed'],          substats:{health:1.21,       atkSpeed:31.2}},
+  mount2:   {name:'Brown Leaf',          level:13,  rarity:'Common',       slots:['lifesteal','rangedDmg'],      substats:{lifesteal:16.8,    rangedDmg:11}},
+
+  // Pre-loaded benched items
+  inv1:     {name:'Brown Leaf',          level:1,   rarity:'Common',       slots:['critDmg','atkSpeed'],         substats:{critDmg:75.8,      atkSpeed:18.7}},
+  inv2:     {name:'Treant',              level:6,   rarity:'Ultimate',     slots:['critDmg','doubleChance'],     substats:{critDmg:79.7,      doubleChance:1.42}},
+  inv3:     {name:'Enchanted Elk',       level:1,   rarity:'Ultimate',     slots:['health','critChance'],        substats:{health:7.92,       critChance:11.9}},
+  inv4:     {name:'Enchanted Elk',       level:1,   rarity:'Ultimate',     slots:['dmg','block'],                substats:{dmg:6.96,          block:2.78}},
+  inv5:     {name:'Cerberus',            level:26,  rarity:'Legendary',    slots:['dmg','atkSpeed'],             substats:{dmg:5.61,          atkSpeed:33.4}},
+  inv6:     {name:'Cerberus',            level:25,  rarity:'Legendary',    slots:['doubleChance','health'],      substats:{doubleChance:19.2, health:6.73}},
+  inv7:     {name:'Kitsune',             level:24,  rarity:'Legendary',    slots:['critChance','lifesteal'],     substats:{critChance:6.65,   lifesteal:16.8}},
+  inv8:     {name:'Serpent',             level:1,   rarity:'Legendary',    slots:['dmg','doubleChance'],         substats:{dmg:12.5,          doubleChance:16.5}},
+};
+
+let state={}, selId=null, db=null;
+
+function defData(id){
+  const e=ENTS.find(e=>e.id===id);
+  if(e.type==='skills') return {slots:Array(5).fill(0).map(()=>({name:'',level:1,stype:'Active'}))};
+  if(e.type==='techtree') return {nodes:{}};
+  const d={name:'',imageUrl:'',level:1,rarity:'',activeSlots:[SS[0].k,SS[1].k],substats:{}};
+  SS.forEach(s=>d.substats[s.k]=0);
+  if(e.type==='mount' || e.type==='pet' || e.type==='parked') d.rarity='Common';
+  return d;
+}
+
+function initState(){
+  ENTS.forEach(e=>{
+    state[e.id]=defData(e.id);
+    const s=SEED[e.id];
+    if(!s) return;
+    ['name','level','rarity','imageUrl'].forEach(f=>{if(s[f]!==undefined)state[e.id][f]=s[f];});
+    if(s.substats) Object.assign(state[e.id].substats, s.substats);
+    if(s.slots) state[e.id].activeSlots=s.slots;
+  });
+}
+
+async function openDB(){
+  return new Promise((res,rej)=>{
+    // Incremented to v9 for the new inventory system
+    const r=indexedDB.open('forge-master-v9',1);
+    r.onupgradeneeded=ev=>ev.target.result.createObjectStore('items',{keyPath:'id'});
+    r.onsuccess=ev=>res(ev.target.result);
+    r.onerror=()=>rej(r.error);
+  });
+}
+async function loadDB(){
+  try{
+    db=await openDB();
+    const tx=db.transaction('items','readonly'),st=tx.objectStore('items');
+    await Promise.all(ENTS.map(e=>new Promise(res=>{
+      const r=st.get(e.id);
+      r.onsuccess=()=>{if(r.result)state[e.id]=r.result.data;res();};
+      r.onerror=()=>res();
+    })));
+  }catch(err){db=null;}
+}
+async function saveAll(){
+  const btn=document.getElementById('save-btn');
+  if(!db){btn.textContent='No DB';setTimeout(()=>{btn.innerHTML='<i class="ti ti-device-floppy" aria-hidden="true"></i> Save';},2000);return;}
+  const tx=db.transaction('items','readwrite'),st=tx.objectStore('items');
+  ENTS.forEach(e=>st.put({id:e.id,data:state[e.id]}));
+  await new Promise(res=>{tx.oncomplete=res;tx.onerror=res;});
+  btn.innerHTML='<i class="ti ti-check" aria-hidden="true"></i> Saved';
+  setTimeout(()=>{btn.innerHTML='<i class="ti ti-device-floppy" aria-hidden="true"></i> Save';},1500);
+}
+
+function fmtVal(v){return Math.round(v*10)/10;}
+
+function drawLines(){
+  const sc={x:SUM.x+SUM.w/2,y:SUM.y+SUM.h/2};
+  let h='';
+  ENTS.forEach(e=>{
+    if(e.type === 'parked') return; // Do not draw connection lines for parked inventory
+    const c={x:e.x+e.w/2,y:e.y+e.h/2},col=COL[e.type],sup=e.type==='skills'||e.type==='techtree';
+    h+=`<line x1="${c.x}" y1="${c.y}" x2="${sc.x}" y2="${sc.y}" stroke="${col}" stroke-width="1.2" stroke-opacity="${sup?'0.3':'0.55'}" stroke-dasharray="${sup?'7 5':'5 4'}"/>`;
+    h+=`<circle cx="${c.x}" cy="${c.y}" r="${sup?2.5:3}" fill="${col}" fill-opacity="0.75"/>`;
+  });
+  h+=`<circle cx="${sc.x}" cy="${sc.y}" r="5" fill="#378ADD" fill-opacity="0.8"/>`;
+  document.getElementById('svg-lines').innerHTML=h;
+}
+
+function totals(){
+  const t={};SS.forEach(s=>t[s.k]=0);
+  ENTS.filter(e=>['gear','mount','pet'].includes(e.type)).forEach(e=>{
+    const d=state[e.id];
+    if(d&&d.substats)SS.forEach(s=>{t[s.k]+=(parseFloat(d.substats[s.k])||0);});
+  });
+  return t;
+}
+
+function cardBody(e,d,isSel){
+  if(isSel) return makeInlineEditor(e,d);
+
+  if(e.type==='skills'){
+    const slots=d.slots||[],filled=slots.filter(s=>s.name&&s.name.trim()).length;
+    const names=slots.filter(s=>s.name&&s.name.trim()).slice(0,3).map(s=>`<div style="font-size:10px;color:var(--text-secondary);padding:1px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${s.name} <span style="font-weight:500;color:var(--text-primary);">Lv${s.level}</span></div>`).join('');
+    return `<div style="padding:3px 9px 8px;"><div style="font-size:10px;color:var(--text-muted);margin-bottom:2px;">${filled}/5 configured</div>${names||'<div style="font-size:10px;color:var(--text-muted);font-style:italic;">tap to edit</div>'}</div>`;
+  }
+  if(e.type==='techtree'){
+    const nodes=d.nodes||{},unlocked=TN.filter(n=>nodes[n.id]).length;
+    const groups=[...new Set(TN.map(n=>n.g))];
+    const lines=groups.map(g=>{const gn=TN.filter(n=>n.g===g),done=gn.filter(n=>nodes[n.id]).length,full=done===gn.length;return `<div style="font-size:10px;color:${full?'#2ACC97':'var(--text-secondary)'};padding:1px 0;">${g}: ${done}/${gn.length}${full?' ✓':''}</div>`;}).join('');
+    return `<div style="padding:3px 9px 8px;"><div style="height:3px;background:var(--surface-0);border-radius:2px;overflow:hidden;margin-bottom:5px;"><div style="width:${Math.min(100,(unlocked/TN.length)*100)}%;height:100%;background:#185FA5;border-radius:2px;"></div></div>${lines}</div>`;
+  }
+
+  const active = d.activeSlots || [SS[0].k,SS[1].k];
+  const sortedSlots = [...active].sort((a,b) => {
+    const valA = parseFloat((d.substats || {})[a]) || 0;
+    const valB = parseFloat((d.substats || {})[b]) || 0;
+    return valB - valA;
+  });
+
+  const rows=sortedSlots.map(k=>{
+    const s=SS.find(ss=>ss.k===k),v=parseFloat((d.substats||{})[k])||0;
+    if(!s) return '';
+    return `<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-secondary);padding:1px 0;"><span>${s.l}</span><span style="font-weight:500;color:${v>0?'var(--text-primary)':'var(--text-muted)'};">${v>0?fmtVal(v)+'%':'—'}</span></div>`;
+  }).join('');
+  return `<div style="padding:3px 9px 8px;">${rows}</div>`;
+}
+
+function ssOptions(selectedKey){
+  return SS.map(s=>`<option value="${s.k}"${s.k===selectedKey?' selected':''}>${s.l} (max ${s.max}%)</option>`).join('');
+}
+
+function makeInlineEditor(e,d){
+  let content = '';
+  if(e.type==='skills'){
+    const slots=d.slots||Array(5).fill(0).map(()=>({name:'',level:1,stype:'Active'}));
+    content=`<div style="font-size:10px;font-weight:500;color:var(--text-secondary);margin:4px 0 2px;">Slots</div>`
+      +slots.map((sk,i)=>`<div style="display:grid;grid-template-columns:1fr 34px;gap:4px;margin:3px 0;align-items:center;">
+        <input type="text" placeholder="Skill ${i+1}" value="${sk.name||''}" onchange="updSkill(${i},'name',this.value)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;">
+        <input type="number" value="${sk.level||1}" min="1" max="99" onchange="updSkill(${i},'level',+this.value)" style="font-size:10px;padding:2px 2px;text-align:center;">
+      </div>`).join('');
+  } else if(e.type==='techtree'){
+    const nodes=d.nodes||{};
+    content=`<div style="font-size:9px;color:var(--text-muted);margin:4px 0 6px;">Skip Skill DMG nodes</div>`;
+    content+=TN.map(n=>`<label class="tcheck" style="gap:4px;font-size:10px;margin:2px 0;"><input type="checkbox" ${nodes[n.id]?'checked':''} onchange="updTechNode('${n.id}',this.checked)" style="margin:0;transform:scale(0.85);"><span>${n.l}</span></label>`).join('');
+  } else {
+    const isMount=e.type==='mount', isPet=e.type==='pet', isParked=e.type==='parked';
+    const rarList=e.type==='gear'?GEAR_RARITIES:PARKED_RARITIES;
+    const active=d.activeSlots||[SS[0].k,SS[1].k];
+
+    const ssRows=active.map((k,i)=>{
+      const v=fmtVal(parseFloat(d.substats[k])||0);
+      return `<div class="ss-row">
+        <select onchange="updSlot('${e.id}',${i},this.value)" style="font-size:9px;padding:2px 2px;width:100%;box-sizing:border-box;">${ssOptions(k)}</select>
+        <input type="number" step="0.1" min="0" value="${v}" placeholder="0" oninput="updStatVal('${e.id}','${k}',+this.value)" id="ssval-${e.id}-${i}" style="font-size:10px;padding:2px 4px;text-align:right;width:100%;box-sizing:border-box;">
+        <span style="font-size:9px;color:var(--text-muted);">%</span>
+      </div>`;
+    }).join('');
+
+    let swapHTML = '';
+    if (isMount || isPet || isParked) {
+        const swapEntsList = ENTS.filter(p => (p.type === 'pet' || p.type === 'mount' || p.type === 'parked') && p.id !== e.id);
+        const opts = swapEntsList.map(p => `<option value="${p.id}">${p.label} (${state[p.id]?.name || 'Empty'})</option>`).join('');
+        swapHTML = `<div style="margin-top:8px; padding-top:8px; border-top: 0.5px solid var(--border); display:flex; gap:4px; align-items: center;">
+            <span style="font-size:9px; color:var(--text-muted);">Swap:</span>
+            <select id="swap-${e.id}" style="font-size:9px; flex:1; padding:2px;">${opts}</select>
+            <button onclick="swapEnts('${e.id}')" style="font-size:9px; padding:2px 6px;">Swap</button>
+        </div>`;
+    }
+
+    content=`
+      <div style="margin-top:6px;display:grid;grid-template-columns:1fr 42px;gap:4px;">
+        <input type="text" placeholder="Item Name" value="${d.name||''}" onchange="updField('${e.id}','name',this.value)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;">
+        <input type="number" placeholder="Lv" value="${d.level||1}" min="1" onchange="updField('${e.id}','level',+this.value)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;text-align:center;">
+      </div>
+      <div style="margin-top:4px;">
+        <select onchange="updField('${e.id}','rarity',this.value)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;">
+          ${rarList.map(r=>`<option value="${r}"${d.rarity===r?' selected':''}>${r||'— Rarity —'}</option>`).join('')}
+        </select>
+      </div>
+      <div style="font-size:10px;font-weight:500;color:var(--text-secondary);margin:6px 0 2px;">Substats</div>
+      ${ssRows}
+      ${swapHTML}`;
+  }
+
+  return `<div style="padding:2px 9px 8px;" onclick="event.stopPropagation();">
+    ${content}
+    <div style="display:flex;justify-content:space-between;margin-top:8px;gap:4px;">
+      <button onclick="clearEnt('${e.id}')" style="font-size:9px;padding:2px 6px;flex:1;">Clear</button>
+      <button onclick="closeEdit(event)" style="font-size:9px;padding:2px 6px;flex:1;">Close</button>
+    </div>
+  </div>`;
+}
+
+function renderCards(){
+  const t=totals();let h='';
+  ENTS.forEach(e=>{
+    const d=state[e.id]||defData(e.id),col=COL[e.type],isSel=selId===e.id;
+    const isStatEnt=['gear','mount','pet','parked'].includes(e.type);
+    const title=isStatEnt&&d.name?d.name:e.label;
+    const lv=d.level?` Lv.${d.level}`:'';
+    let subtitle='';
+    if(e.type==='gear'&&d.name) subtitle=e.label+(d.rarity?` · ${d.rarity}`:'');
+    else if(e.type==='gear'&&d.rarity) subtitle=d.rarity;
+    else if((e.type==='mount'||e.type==='pet'||e.type==='parked')&&(d.rarity||d.level)) subtitle=`${d.rarity||''}${lv}`;
+    const tcol=d.rarity&&RARITY_COL[d.rarity]?RARITY_COL[d.rarity]:col;
+    
+    // Dim parked items visually unless selected
+    const opacityStyle = (e.type === 'parked' && !isSel) ? 'opacity: 0.65;' : '';
+
+    let calcHeight = e.h;
+    if(isSel) {
+      if(e.type==='skills') calcHeight = 210;
+      else if(e.type==='techtree') calcHeight = 240;
+      else if(e.type==='gear') calcHeight = 188;
+      else calcHeight = 224; // Pets/Mounts/Parked need more room for the Swap button
+    }
+
+    h+=`<div class="ecard ${e.type}${isSel?' sel':''}" style="left:${e.x}px;top:${e.y}px;width:${e.w}px;height:${calcHeight}px;--theme-color:${tcol};${opacityStyle}" onclick="selEnt('${e.id}')">
+      <div class="etop" style="background:${tcol};"></div>
+      <div style="padding:5px 9px 2px;display:flex;align-items:flex-start;gap:5px;">
+        <i class="ti ${e.icon}" style="font-size:12px;color:${tcol};margin-top:1px;flex-shrink:0;" aria-hidden="true"></i>
+        <div style="overflow:hidden;min-width:0;">
+          <div style="font-size:11px;font-weight:500;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${title}${!d.name&&e.type==='gear'&&lv?lv:''}</div>
+          ${subtitle?`<div style="font-size:9px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${subtitle}</div>`:''}
+        </div>
+      </div>
+      ${cardBody(e,d,isSel)}
+    </div>`;
+  });
+  const isSumSel=selId==='summary';
+  const bars=SS.filter(s=>s.tgt).map(s=>{
+    const v=fmtVal(t[s.k]),pct=Math.min(100,(v/s.tgt)*100),met=v>=s.tgt,bc=met?'#2ACC97':v>s.tgt*0.55?'#DCA63B':'#E96B3E';
+    return `<div style="display:flex;align-items:center;gap:8px;margin:5px 0;">
+      <span style="font-size:11px;color:var(--text-secondary);width:90px;flex-shrink:0;">${s.l}</span>
+      <div style="flex:1;height:4px;background:var(--surface-0);border-radius:2px;overflow:hidden;"><div style="width:${pct}%;height:100%;background:${bc};border-radius:2px;transition:width 0.3s;"></div></div>
+      <span style="font-size:11px;font-weight:500;color:${met?'#2ACC97':'var(--text-primary)'};width:46px;text-align:right;">${v}%${met?' ✓':''}</span>
+      <span style="font-size:10px;color:var(--text-muted);width:70px;">${s.tl}</span>
+    </div>`;
+  }).join('');
+  h+=`<div class="ecard summary${isSumSel?' sel':''}" style="left:${SUM.x}px;top:${SUM.y}px;width:${SUM.w}px;height:${SUM.h}px;" onclick="selEnt('summary')">
+    <div class="etop" style="background:#378ADD;"></div>
+    <div style="padding:6px 12px 3px;display:flex;align-items:center;gap:5px;">
+      <i class="ti ti-chart-bar" style="font-size:12px;color:#378ADD;" aria-hidden="true"></i>
+      <span style="font-size:11px;font-weight:500;color:var(--text-primary);">Build summary</span>
+    </div>
+    <div style="padding:3px 12px 10px;">${bars}</div>
+  </div>`;
+  document.getElementById('cards').innerHTML=h;
+}
+
+function renderSummaryRows(){
+  const t=totals();let h='';
+  SS.forEach(s=>{
+    const v=fmtVal(t[s.k]),pct=s.tgt?Math.min(100,(v/s.tgt)*100):Math.min(100,(v/s.max)*50),met=s.tgt&&v>=s.tgt,bc=met?'#2ACC97':s.tgt&&v>s.tgt*0.55?'#DCA63B':'#378ADD';
+    h+=`<div style="display:grid;grid-template-columns:110px 1fr 56px ${s.tgt?'80px':'0'};gap:8px;align-items:center;padding:5px 0;border-bottom:0.5px solid var(--border);">
+      <span style="font-size:12px;color:var(--text-secondary);">${s.l}</span>
+      <div style="height:4px;background:var(--surface-0);border-radius:2px;overflow:hidden;"><div style="width:${pct}%;height:100%;background:${bc};border-radius:2px;transition:width 0.3s;"></div></div>
+      <span style="font-size:12px;font-weight:500;color:${met?'#2ACC97':'var(--text-primary)'};text-align:right;">${v}%${met?' ✓':''}</span>
+      ${s.tgt?`<span style="font-size:10px;color:var(--text-muted);">${s.tl}</span>`:''}
+    </div>`;
+  });
+  document.getElementById('summary-rows').innerHTML=h;
+}
+
+function selEnt(id){
+  if(selId === id) return;
+  selId=id;
+  renderCards();
+}
+
+function closeEdit(e){
+  if(e) e.stopPropagation();
+  selId=null;
+  renderCards();
+}
+
+function updSlot(id,slotIdx,newKey){
+  const d=state[id];
+  const oldKey=d.activeSlots[slotIdx];
+  d.substats[oldKey]=0;
+  d.activeSlots[slotIdx]=newKey;
+  renderCards();renderSummaryRows();
+}
+
+function updStatVal(id,key,val){
+  state[id].substats[key]=isNaN(val)?0:val;
+  renderSummaryRows(); 
+}
+
+function updField(id,f,v){
+  state[id][f]=v;
+  renderCards();
+}
+
+function updSkill(i,f,v){
+  if(!state.skills.slots) state.skills.slots=Array(5).fill(0).map(()=>({name:'',level:1,stype:'Active'}));
+  state.skills.slots[i][f]=v;
+  renderCards();
+}
+
+function updTechNode(nid,checked){
+  if(!state.techtree.nodes) state.techtree.nodes={};
+  state.techtree.nodes[nid]=checked;
+}
+
+function clearEnt(id){
+  state[id]=defData(id);
+  renderCards();renderSummaryRows();
+}
+
+function swapEnts(id1){
+  const id2 = document.getElementById('swap-' + id1).value;
+  if(!id2 || id1 === id2) return;
+  
+  // Deep copy states to swap cleanly
+  const temp = JSON.parse(JSON.stringify(state[id1]));
+  state[id1] = JSON.parse(JSON.stringify(state[id2]));
+  state[id2] = temp;
+  
+  renderCards();
+  renderSummaryRows();
+  saveAll();
+}
+
+async function init(){initState();await loadDB();drawLines();renderCards();renderSummaryRows();}
+init();
+</script>

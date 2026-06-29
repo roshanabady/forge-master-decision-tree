@@ -1,0 +1,22 @@
+id,name,level,rarity,substat1_key,substat1_val,substat2_key,substat2_val
+weapon,Plasma Rifle,81,Interstellar,doubleChance,16.2,healthRegen,3.65
+gloves,Rainbow Gloves,10,Multiverse,lifesteal,19.7,health,10.1
+helmet,Mask,17,Multiverse,atkSpeed,33,rangedDmg,11.7
+body,Plasma Suit,112,Interstellar,doubleChance,19.3,cooldown,2.46
+necklace,Psi Choker,45,Interstellar,cooldown,4.02,lifesteal,19.6
+ring,Connection Ring,25,Multiverse,health,12.7,doubleChance,17.6
+boots,Ethereal Socks,49,Multiverse,lifesteal,6.71,critChance,6.33
+pelvic,Pelvic Synchronizer,106,Interstellar,doubleChance,18.6,lifesteal,16
+pet1,Electry,16,Ultimate,doubleChance,12.9,meleeDmg,1.22
+pet2,Electry,11,Ultimate,doubleChance,18.7,critDmg,12
+pet3,Serpent,20,Legendary,cooldown,6.46,doubleChance,14.2
+mount1,Lily Pad,12,Common,health,1.21,atkSpeed,31.2
+inv1,Brown Leaf,13,Common,lifesteal,16.8,rangedDmg,11
+inv2,Brown Leaf,1,Common,critDmg,75.8,atkSpeed,18.7
+inv3,Treant,6,Ultimate,critDmg,79.7,doubleChance,1.42
+inv4,Enchanted Elk,1,Ultimate,health,7.92,critChance,11.9
+inv5,Enchanted Elk,1,Ultimate,dmg,6.96,block,2.78
+inv6,Cerberus,26,Legendary,dmg,5.61,atkSpeed,33.4
+inv7,Cerberus,25,Legendary,doubleChance,19.2,health,6.73
+inv8,Kitsune,24,Legendary,critChance,6.65,lifesteal,16.8
+inv9,Serpent,1,Legendary,dmg,12.5,doubleChance,16.5

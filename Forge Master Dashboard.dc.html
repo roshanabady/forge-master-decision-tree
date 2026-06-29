@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #080c12; overflow: hidden; }
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: #0c1420; }
+    ::-webkit-scrollbar-thumb { background: #1a3050; border-radius: 2px; }
+  </style>
+</helmet>
+
+<div style="width:100vw;height:100vh;background:#080c12;overflow:hidden;position:relative;font-family:Rajdhani,sans-serif;">
+
+  <!-- TOP BAR -->
+  <div style="position:absolute;top:0;left:0;right:0;height:48px;background:#0a1220;border-bottom:1px solid #1a2d45;display:flex;align-items:center;padding:0 20px;z-index:100;gap:16px;">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div style="width:10px;height:10px;border-radius:50%;background:#f0a020;box-shadow:0 0 10px #f0a020aa;"></div>
+      <span style="font-family:'Share Tech Mono',monospace;font-size:14px;color:#f0a020;letter-spacing:3px;">FORGE MASTER</span>
+      <span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:#2a4060;letter-spacing:2px;">// SPECS DASHBOARD</span>
+    </div>
+    <div style="flex:1;"></div>
+    <span style="font-size:10px;color:#1a3050;font-family:'Share Tech Mono',monospace;letter-spacing:1px;">SCROLL TO ZOOM · DRAG HEADER TO MOVE</span>
+    <button onClick="{{ resetLayout }}" style="padding:5px 12px;background:transparent;border:1px solid #1a3050;border-radius:3px;color:#2a5070;font-size:10px;font-family:'Share Tech Mono',monospace;cursor:pointer;letter-spacing:1px;" style-hover="border-color:#2a5070;color:#4a8aaa;">RESET LAYOUT</button>
+  </div>
+
+  <!-- CANVAS WRAPPER -->
+  <div id="fm-canvas"
+       style="position:absolute;top:48px;left:0;right:0;bottom:0;overflow:hidden;cursor:{{ canvasCursor }};background-color:#080c12;background-image:radial-gradient(circle,#1a2d4514 1px,transparent 1px);background-size:28px 28px;"
+       onMouseDown="{{ onMD }}"
+       onMouseMove="{{ onMM }}"
+       onMouseUp="{{ onMU }}"
+       onMouseLeave="{{ onMU }}">
+
+    <!-- TRANSFORM CONTAINER -->
+    <div style="{{ canvasStyle }}" data-bg="1">
+
+      <!-- SVG EDGES -->
+      {{ edgesSvg }}
+
+      <!-- NODE CARDS -->
+      <sc-for list="{{ nodes }}" as="node" hint-placeholder-count="8">
+        <div style="{{ node.cardStyle }}">
+
+          <!-- HEADER / DRAG HANDLE -->
+          <div onMouseDown="{{ node.onDragStart }}"
+               style="padding:10px 12px 9px;border-bottom:1px solid #1a2d4540;display:flex;align-items:center;gap:8px;cursor:grab;">
+            <div style="{{ node.dotStyle }}"></div>
+            <span style="{{ node.labelStyle }}">{{ node.label }}</span>
+          </div>
+
+          <!-- AGGREGATE BAR (gear, pets, mounts) -->
+          <sc-if value="{{ node.hasAgg }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:7px 12px 6px;display:flex;gap:16px;flex-wrap:wrap;border-bottom:1px solid #1a2d4528;">
+              <sc-for list="{{ node.headerAgg }}" as="agg" hint-placeholder-count="3">
+                <div style="display:flex;flex-direction:column;">
+                  <span style="font-size:8px;color:#3a5a7a;font-family:'Share Tech Mono',monospace;letter-spacing:1px;">{{ agg.key }}</span>
+                  <span style="font-size:15px;font-weight:700;line-height:1.2;color:{{ agg.color }};">{{ agg.valueStr }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <!-- BUILD SUMMARY ROWS -->
+          <sc-if value="{{ node.isBuildSummary }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:8px 0 4px;">
+              <sc-for list="{{ node.buildRows }}" as="br" hint-placeholder-count="8">
+                <div style="padding:3px 12px;display:flex;align-items:center;gap:8px;">
+                  <span style="{{ br.labelStyle }}">{{ br.label }}</span>
+                  <div style="flex:1;height:3px;background:#0f1e30;border-radius:2px;overflow:hidden;">
+                    <div style="{{ br.barStyle }}"></div>
+                  </div>
+                  <span style="{{ br.valueStyle }}">{{ br.value }}</span>
+                </div>
+              </sc-for>
+            </div>
+            <div style="padding:5px 12px 8px;font-size:8px;color:#1a3050;font-family:'Share Tech Mono',monospace;letter-spacing:1px;border-top:1px solid #1a2d4525;margin-top:2px;">EQUIPPED ONLY · GEAR + PETS + MOUNT</div>
+          </sc-if>
+
+          <!-- ASCENSION PICKER -->
+          <sc-if value="{{ node.isAscension }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:12px;">
+              <div style="font-size:8px;color:#3a5a7a;font-family:'Share Tech Mono',monospace;letter-spacing:2px;margin-bottom:7px;">PILLAR (1–4)</div>
+              <div style="display:flex;gap:5px;margin-bottom:12px;">
+                <sc-for list="{{ node.ascensionPillars }}" as="p" hint-placeholder-count="4">
+                  <button onClick="{{ p.onClick }}" style="{{ p.style }}">{{ p.num }}</button>
+                </sc-for>
+              </div>
+              <div style="font-size:8px;color:#3a5a7a;font-family:'Share Tech Mono',monospace;letter-spacing:2px;margin-bottom:7px;">TIER (1–3)</div>
+              <div style="display:flex;gap:5px;margin-bottom:12px;">
+                <sc-for list="{{ node.ascensionTiers }}" as="t" hint-placeholder-count="3">
+                  <button onClick="{{ t.onClick }}" style="{{ t.style }}">{{ t.num }}</button>
+                </sc-for>
+              </div>
+              <div style="background:#0f1e30;border-radius:4px;padding:10px;display:flex;justify-content:center;align-items:center;gap:16px;">
+                <div style="display:flex;flex-direction:column;align-items:center;">
+                  <span style="font-size:8px;color:#3a5a7a;font-family:'Share Tech Mono',monospace;">PILLAR</span>
+                  <span style="font-size:30px;font-weight:700;color:#e2e8f0;line-height:1.1;">{{ node.ascension.pillar }}</span>
+                </div>
+                <span style="font-size:18px;color:#1a3050;">×</span>
+                <div style="display:flex;flex-direction:column;align-items:center;">
+                  <span style="font-size:8px;color:#3a5a7a;font-family:'Share Tech Mono',monospace;">TIER</span>
+                  <span style="font-size:30px;font-weight:700;color:#e2e8f0;line-height:1.1;">{{ node.ascension.tier }}</span>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+
+          <!-- ITEM SECTIONS -->
+          <sc-for list="{{ node.sections }}" as="section" hint-placeholder-count="1">
+            <sc-if value="{{ section.hasLabel }}" hint-placeholder-val="{{ false }}">
+              <div style="padding:4px 12px;font-size:8px;letter-spacing:2px;color:#3a5a7a;background:#090f1a;border-top:1px solid #1a2d4420;border-bottom:1px solid #1a2d4420;font-family:'Share Tech Mono',monospace;">{{ section.label }}</div>
+            </sc-if>
+            <sc-for list="{{ section.items }}" as="item" hint-placeholder-count="3">
+              <div onClick="{{ item.onEdit }}"
+                   style="padding:6px 10px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #1a2d4418;cursor:pointer;"
+                   style-hover="background:#1a2d441a;">
+
+                <!-- IMAGE SLOT -->
+                <div style="width:36px;height:36px;border-radius:3px;overflow:hidden;background:#090f1a;border:1px solid #1a2d4450;flex-shrink:0;position:relative;"
+                     onDrop="{{ item.onDrop }}"
+                     onDragOver="{{ item.onDragOver }}"
+                     title="Drop image here, or click row to edit URL">
+                  <sc-if value="{{ item.hasImage }}" hint-placeholder-val="{{ false }}">
+                    <img src="{{ item.image }}" style="width:100%;height:100%;object-fit:cover;" alt="">
+                  </sc-if>
+                  <sc-if value="{{ item.noImage }}" hint-placeholder-val="{{ true }}">
+                    <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:7px;color:#1a3050;font-family:'Share Tech Mono',monospace;">IMG</div>
+                  </sc-if>
+                </div>
+
+                <!-- ITEM INFO -->
+                <div style="flex:1;min-width:0;">
+                  <div style="display:flex;align-items:baseline;gap:5px;margin-bottom:3px;">
+                    <span style="font-size:12px;font-weight:600;color:#c4d4e8;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ item.name }}</span>
+                    <span style="font-size:9px;color:#3a5a7a;flex-shrink:0;font-family:'Share Tech Mono',monospace;">{{ item.level }}</span>
+                  </div>
+                  <div style="display:flex;gap:3px;flex-wrap:wrap;align-items:center;">
+                    <sc-for list="{{ item.substats }}" as="ss" hint-placeholder-count="2">
+                      <span style="{{ ss.chipStyle }}">{{ ss.text }}</span>
+                    </sc-for>
+                    <sc-if value="{{ item.hasDropText }}" hint-placeholder-val="{{ false }}">
+                      <span style="font-size:9px;color:#3a5a7a;font-family:'Share Tech Mono',monospace;">→ {{ item.dropText }}</span>
+                    </sc-if>
+                  </div>
+                </div>
+
+                <!-- RARITY -->
+                <span style="{{ item.rarityStyle }}">{{ item.rarity }}</span>
+
+              </div>
+            </sc-for>
+          </sc-for>
+
+          <!-- EMPTY STATE -->
+          <sc-if value="{{ node.isEmpty }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:22px 12px;text-align:center;color:#1a3050;font-size:10px;font-family:'Share Tech Mono',monospace;letter-spacing:2px;">— NO DATA YET —</div>
+          </sc-if>
+
+          <!-- ADD BUTTON -->
+          <sc-if value="{{ node.canAdd }}" hint-placeholder-val="{{ true }}">
+            <div onClick="{{ node.onAdd }}"
+                 style="padding:8px 12px;text-align:center;font-size:9px;color:#1a3050;font-family:'Share Tech Mono',monospace;cursor:pointer;letter-spacing:2px;border-top:1px solid #1a2d4428;"
+                 style-hover="color:#4a8aaa;background:#0f1e2a;">+ ADD ITEM</div>
+          </sc-if>
+
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- EDIT / ADD MODAL -->
+  <sc-if value="{{ showModal }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;background:rgba(0,0,0,0.88);z-index:200;display:flex;align-items:center;justify-content:center;"
+         onClick="{{ closeModal }}">
+      <div style="width:460px;max-height:86vh;background:#0a1220;border:1px solid #1a3050;border-radius:7px;overflow-y:auto;overflow-x:hidden;box-shadow:0 0 60px rgba(0,0,0,0.8);"
+           onClick="{{ stopProp }}">
+
+        <!-- Modal header -->
+        <div style="padding:14px 20px;border-bottom:1px solid #1a2d45;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#0a1220;z-index:1;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div style="width:6px;height:6px;border-radius:50%;background:{{ md.nodeColor }};box-shadow:0 0 6px {{ md.nodeColor }};"></div>
+            <span style="font-family:'Share Tech Mono',monospace;font-size:11px;color:{{ md.nodeColor }};letter-spacing:2px;">{{ md.title }}</span>
+          </div>
+          <button onClick="{{ closeModal }}" style="background:none;border:none;color:#3a5a7a;font-size:22px;cursor:pointer;padding:0;line-height:1;" style-hover="color:#94a3b8;">×</button>
+        </div>
+
+        <!-- Modal body -->
+        <div style="padding:18px 20px;">
+
+          <!-- Name -->
+          <div style="margin-bottom:14px;">
+            <label style="display:block;font-size:8px;color:#3a5a7a;margin-bottom:5px;font-family:'Share Tech Mono',monospace;letter-spacing:1px;">NAME</label>
+            <input value="{{ md.draft.name }}" onChange="{{ md.onNC }}"
+                   style="width:100%;background:#080c12;border:1px solid #1a2d45;border-radius:3px;padding:8px 10px;color:#c4d4e8;font-size:13px;outline:none;font-family:Rajdhani,sans-serif;"
+                   style-focus="border-color:#2a5070;">
+          </div>
+
+          <!-- Level -->
+          <sc-if value="{{ md.hasLevel }}" hint-placeholder-val="{{ false }}">
+            <div style="margin-bottom:14px;">
+              <label style="display:block;font-size:8px;color:#3a5a7a;margin-bottom:5px;font-family:'Share Tech Mono',monospace;letter-spacing:1px;">LEVEL</label>
+              <input type="number" value="{{ md.draft.level }}" onChange="{{ md.onLC }}"
+                     style="width:100%;background:#080c12;border:1px solid #1a2d45;border-radius:3px;padding:8px 10px;color:#c4d4e8;font-size:13px;outline:none;font-family:'Share Tech Mono',monospace;"
+                     style-focus="border-color:#2a5070;">
+            </div>
+          </sc-if>
+
+          <!-- Rarity -->
+          <sc-if value="{{ md.hasRarity }}" hint-placeholder-val="{{ false }}">
+            <div style="margin-bottom:14px;">
+              <label style="display:block;font-size:8px;color:#3a5a7a;margin-bottom:5px;font-family:'Share Tech Mono',monospace;letter-spacing:1px;">RARITY</label>
+              <select value="{{ md.draft.rarity }}" onChange="{{ md.onRC }}"
+                      style="width:100%;background:#080c12;border:1px solid #1a2d45;border-radius:3px;padding:8px 10px;color:#c4d4e8;font-size:13px;outline:none;cursor:pointer;font-family:Rajdhani,sans-serif;">
+                <sc-for list="{{ md.allRar }}" as="rar" hint-placeholder-count="5">
+                  <option value="{{ rar }}">{{ rar }}</option>
+                </sc-for>
+              </select>
+            </div>
+          </sc-if>
+
+          <!-- Status -->
+          <sc-if value="{{ md.hasStatus }}" hint-placeholder-val="{{ false }}">
+            <div style="margin-bottom:14px;">
+              <label style="display:block;font-size:8px;color:#3a5a7a;margin-bottom:6px;font-family:'Share Tech Mono',monospace;letter-spacing:1px;">STATUS</label>
+              <div style="display:flex;gap:8px;">
+                <button onClick="{{ md.onSE }}" style="{{ md.eqStyle }}">EQUIPPED</button>
+                <button onClick="{{ md.onSP }}" style="{{ md.pkStyle }}">PARKED</button>
+              </div>
+            </div>
+          </sc-if>
+
+          <!-- Drops / Notes -->
+          <sc-if value="{{ md.hasDrops }}" hint-placeholder-val="{{ false }}">
+            <div style="margin-bottom:14px;">
+              <label style="display:block;font-size:8px;color:#3a5a7a;margin-bottom:5px;font-family:'Share Tech Mono',monospace;letter-spacing:1px;">DROPS / NOTES</label>
+              <input value="{{ md.draft.drops }}" onChange="{{ md.onDC }}"
+                     style="width:100%;background:#080c12;border:1px solid #1a2d45;border-radius:3px;padding:8px 10px;color:#c4d4e8;font-size:13px;outline:none;font-family:Rajdhani,sans-serif;"
+                     style-focus="border-color:#2a5070;">
+            </div>
+          </sc-if>
+
+          <!-- Substats -->
+          <sc-if value="{{ md.hasSubs }}" hint-placeholder-val="{{ false }}">
+            <div style="margin-bottom:14px;">
+              <label style="display:block;font-size:8px;color:#3a5a7a;margin-bottom:8px;font-family:'Share Tech Mono',monospace;letter-spacing:1px;">SUBSTATS</label>
+              <sc-for list="{{ md.substats }}" as="mss" hint-placeholder-count="2">
+                <div style="display:flex;gap:7px;margin-bottom:8px;align-items:center;">
+                  <select value="{{ mss.key }}" onChange="{{ mss.onKC }}"
+                          style="flex:1;background:#080c12;border:1px solid #1a2d45;border-radius:3px;padding:6px 8px;font-size:11px;font-family:'Share Tech Mono',monospace;outline:none;cursor:pointer;color:{{ mss.color }};">
+                    <sc-for list="{{ md.allSSK }}" as="sk" hint-placeholder-count="10">
+                      <option value="{{ sk }}">{{ sk }}</option>
+                    </sc-for>
+                  </select>
+                  <input type="number" step="0.01" value="{{ mss.val }}" onChange="{{ mss.onVC }}"
+                         style="width:76px;background:#080c12;border:1px solid #1a2d45;border-radius:3px;padding:6px 8px;color:#c4d4e8;font-size:12px;outline:none;text-align:right;font-family:'Share Tech Mono',monospace;">
+                  <span style="font-size:11px;color:#3a5a7a;font-family:'Share Tech Mono',monospace;">%</span>
+                  <button onClick="{{ mss.onRem }}" style="background:none;border:none;color:#f87171;cursor:pointer;font-size:20px;padding:0 2px;line-height:1;" style-hover="color:#fca5a5;">−</button>
+                </div>
+              </sc-for>
+              <button onClick="{{ addSS }}" style="width:100%;padding:7px;background:#080c12;border:1px dashed #1a3050;border-radius:3px;color:#2a5070;font-size:9px;font-family:'Share Tech Mono',monospace;cursor:pointer;letter-spacing:2px;" style-hover="border-color:#2a5070;color:#4a8aaa;">+ ADD SUBSTAT</button>
+            </div>
+          </sc-if>
+
+          <!-- Image URL -->
+          <div>
+            <label style="display:block;font-size:8px;color:#3a5a7a;margin-bottom:5px;font-family:'Share Tech Mono',monospace;letter-spacing:1px;">IMAGE URL (or drag-drop onto the row)</label>
+            <input value="{{ md.draft.image }}" onChange="{{ md.onIC }}" placeholder="https://..."
+                   style="width:100%;background:#080c12;border:1px solid #1a2d45;border-radius:3px;padding:8px 10px;color:#c4d4e8;font-size:12px;outline:none;font-family:'Share Tech Mono',monospace;"
+                   style-focus="border-color:#2a5070;">
+          </div>
+
+        </div>
+
+        <!-- Modal footer -->
+        <div style="padding:12px 20px;border-top:1px solid #1a2d45;display:flex;justify-content:space-between;align-items:center;position:sticky;bottom:0;background:#0a1220;">
+          <sc-if value="{{ md.canDel }}" hint-placeholder-val="{{ false }}">
+            <button onClick="{{ delItem }}" style="padding:7px 14px;background:transparent;border:1px solid #f8717135;border-radius:3px;color:#f87171;font-size:9px;font-family:'Share Tech Mono',monospace;cursor:pointer;letter-spacing:1px;" style-hover="background:#f8717112;">DELETE</button>
+          </sc-if>
+          <sc-if value="{{ md.isNew }}" hint-placeholder-val="{{ true }}">
+            <div></div>
+          </sc-if>
+          <div style="display:flex;gap:8px;">
+            <button onClick="{{ closeModal }}" style="padding:7px 14px;background:transparent;border:1px solid #1a3050;border-radius:3px;color:#3a5a7a;font-size:9px;font-family:'Share Tech Mono',monospace;cursor:pointer;letter-spacing:1px;" style-hover="border-color:#2a5070;color:#6a8aaa;">CANCEL</button>
+            <button onClick="{{ saveModal }}" style="padding:7px 16px;background:#f0a02015;border:1px solid #f0a02050;border-radius:3px;color:#f0a020;font-size:9px;font-family:'Share Tech Mono',monospace;cursor:pointer;letter-spacing:1px;" style-hover="background:#f0a02025;">SAVE</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+
+  CW = 1800; CH = 1450; CARD_W = 280;
+
+  CARD_H = {
+    gear:510, pets:660, mounts:320,
+    buildSummary:385, skills:140,
+    techTree:140, ascension:270, dungeons:270,
+  };
+
+  RC = {
+    Common:'#6b7a8d', Multiverse:'#9b59ff',
+    Legendary:'#f0a020', Interstellar:'#00d4ff', Ultimate:'#ff6b35',
+  };
+
+  SC = {
+    AS:'#00e5ff', DC:'#ffd60a', LS:'#4ade80',
+    CritChance:'#fb923c', CritDmg:'#f87171',
+    Melee:'#c084fc', Dmg:'#fb8c00',
+    HealthRegen:'#86efac', SkillCD:'#67e8f9',
+    Ranged:'#60a5fa', Health:'#94a3b8',
+  };
+
+  NC = {
+    gear:        {label:'GEAR',          color:'#00d4ff'},
+    pets:        {label:'PETS',          color:'#ff6b35'},
+    mounts:      {label:'MOUNTS',        color:'#4ade80'},
+    buildSummary:{label:'BUILD SUMMARY', color:'#f0a020'},
+    skills:      {label:'SKILLS',        color:'#a78bfa'},
+    techTree:    {label:'TECH TREE',     color:'#60a5fa'},
+    ascension:   {label:'ASCENSION',     color:'#e2e8f0'},
+    dungeons:    {label:'DUNGEONS',      color:'#f87171'},
+  };
+
+  EDGES = [
+    {id:'e1',src:'gear',         tgt:'buildSummary',dashed:true, label:'substats',color:'#00d4ff'},
+    {id:'e2',src:'pets',         tgt:'buildSummary',dashed:true, label:'substats',color:'#ff6b35'},
+    {id:'e3',src:'mounts',       tgt:'buildSummary',dashed:true, label:'substats',color:'#4ade80'},
+    {id:'e4',src:'techTree',     tgt:'gear',        dashed:false,label:'unlocks', color:'#60a5fa'},
+    {id:'e5',src:'buildSummary', tgt:'skills',      dashed:false,label:'governs', color:'#f0a020'},
+    {id:'e6',src:'skills',       tgt:'techTree',    dashed:true, label:'resource',color:'#a78bfa'},
+  ];
+
+  DP = {
+    gear:        {x:80,  y:160},
+    pets:        {x:80,  y:700},
+    mounts:      {x:430, y:1010},
+    buildSummary:{x:720, y:400},
+    skills:      {x:1260,y:290},
+    techTree:    {x:1260,y:80},
+    ascension:   {x:720, y:100},
+    dungeons:    {x:1260,y:520},
+  };
+
+  DD = {
+    gear:[
+      {id:'g1',name:'Casquette',     level:1,  rarity:'Multiverse',  substats:[{key:'AS',val:30.8},  {key:'LS',val:8.64}],       image:null},
+      {id:'g2',name:'Ethereal Socks',level:49, rarity:'Multiverse',  substats:[{key:'LS',val:6.71},  {key:'CritChance',val:6.33}],image:null},
+      {id:'g3',name:'Plasma Suit',   level:112,rarity:'Interstellar',substats:[{key:'DC',val:19.3},  {key:'SkillCD',val:-2.46}],  image:null},
+      {id:'g4',name:'Pelvic Sync',   level:106,rarity:'Interstellar',substats:[{key:'DC',val:18.6},  {key:'LS',val:16}],          image:null},
+      {id:'g5',name:'Plasma Rifle',  level:81, rarity:'Interstellar',substats:[{key:'DC',val:16.2},  {key:'HealthRegen',val:3.65}],image:null},
+      {id:'g6',name:'Impactors',     level:119,rarity:'Interstellar',substats:[{key:'DC',val:11.5},  {key:'Dmg',val:12.8}],       image:null},
+      {id:'g7',name:'Psi Choker',    level:118,rarity:'Interstellar',substats:[{key:'DC',val:7.63},  {key:'Melee',val:19.4}],     image:null},
+      {id:'g8',name:'Rarium Ring',   level:63, rarity:'Interstellar',substats:[{key:'AS',val:37.4},  {key:'CritDmg',val:19.9}],   image:null},
+    ],
+    pets:[
+      {id:'p1', name:'Electry',      rarity:'Ultimate', level:15,substats:[{key:'DC',val:12.9},    {key:'Melee',val:1.22}],    status:'equipped',image:null},
+      {id:'p2', name:'Electry',      rarity:'Ultimate', level:2, substats:[{key:'DC',val:18.7},    {key:'CritDmg',val:12}],    status:'equipped',image:null},
+      {id:'p3', name:'Cerberus',     rarity:'Legendary',level:23,substats:[{key:'AS',val:33.4},    {key:'Dmg',val:5.61}],      status:'equipped',image:null},
+      {id:'p4', name:'Treant',       rarity:'Ultimate', level:6, substats:[{key:'CritDmg',val:79.7},{key:'DC',val:1.42}],      status:'parked',  image:null},
+      {id:'p5', name:'Treant',       rarity:'Ultimate', level:1, substats:[{key:'LS',val:10.7},    {key:'CritChance',val:8.36}],status:'parked',  image:null},
+      {id:'p6', name:'Enchanted Elk',rarity:'Ultimate', level:1, substats:[{key:'CritChance',val:11.9},{key:'Health',val:7.92}],status:'parked',  image:null},
+      {id:'p7', name:'Cerberus',     rarity:'Legendary',level:25,substats:[{key:'DC',val:19.2},    {key:'Health',val:6.73}],   status:'parked',  image:null},
+      {id:'p8', name:'Kitsune',      rarity:'Legendary',level:24,substats:[{key:'CritChance',val:6.65},{key:'LS',val:16.8}],   status:'parked',  image:null},
+      {id:'p9', name:'Serpent',      rarity:'Legendary',level:20,substats:[{key:'DC',val:14.2},    {key:'SkillCD',val:-6.46}], status:'parked',  image:null},
+      {id:'p10',name:'Serpent',      rarity:'Legendary',level:1, substats:[{key:'DC',val:16.5},    {key:'Dmg',val:12.5}],      status:'parked',  image:null},
+    ],
+    mounts:[
+      {id:'m1',name:'Brown Leaf',rarity:'Common',level:10,substats:[{key:'LS',val:16.8},    {key:'Ranged',val:11}],  status:'equipped',image:null},
+      {id:'m2',name:'Lily Pad',  rarity:'Common',level:10,substats:[{key:'AS',val:31.2},    {key:'Health',val:1.21}],status:'parked',  image:null},
+      {id:'m3',name:'Brown Leaf',rarity:'Common',level:1, substats:[{key:'CritDmg',val:75.8},{key:'AS',val:18.7}],  status:'parked',  image:null},
+    ],
+    skills:[],
+    techTree:[],
+    ascension:{pillar:1,tier:1},
+    dungeons:[
+      {id:'d1',name:'Hammer Thief',drops:'Hammers / Gold',  image:null},
+      {id:'d2',name:'Ghost Town',  drops:'Skill Tickets',   image:null},
+      {id:'d3',name:'Zombie Rush', drops:'Potions',         image:null},
+      {id:'d4',name:'Invasion',    drops:'Eggshells',       image:null},
+    ],
+  };
+
+  state = {
+    data:null, positions:null,
+    co:{x:0,y:0}, cs:0.7,
+    panning:false, panStart:null,
+    dragId:null, dragNodeStart:null, dragMouseStart:null,
+    modal:null,
+  };
+
+  componentDidMount() {
+    const sd = localStorage.getItem('fm_data');
+    const sp = localStorage.getItem('fm_pos');
+    const data = sd ? JSON.parse(sd) : JSON.parse(JSON.stringify(this.DD));
+    const positions = sp ? JSON.parse(sp) : JSON.parse(JSON.stringify(this.DP));
+    this.setState({data, positions});
+    setTimeout(() => {
+      const vw = window.innerWidth, vh = window.innerHeight - 48;
+      const s = Math.min((vw - 40) / this.CW, (vh - 40) / this.CH, 0.86);
+      this.setState({cs:s, co:{x:(vw-this.CW*s)/2, y:(vh-this.CH*s)/2+2}});
+      const el = document.getElementById('fm-canvas');
+      if (el) {
+        el.addEventListener('wheel', this._wh = (e) => {
+          e.preventDefault();
+          const {cs,co} = this.state;
+          const d = e.deltaY > 0 ? 0.9 : 1.1;
+          const ns = Math.max(0.18, Math.min(3, cs * d));
+          const r = el.getBoundingClientRect();
+          const mx = e.clientX - r.left, my = e.clientY - r.top;
+          this.setState({cs:ns, co:{x:mx-(mx-co.x)*(ns/cs), y:my-(my-co.y)*(ns/cs)}});
+        }, {passive:false});
+      }
+    }, 80);
+  }
+
+  componentWillUnmount() {
+    const el = document.getElementById('fm-canvas');
+    if (el && this._wh) el.removeEventListener('wheel', this._wh);
+  }
+
+  sv = (data) => { localStorage.setItem('fm_data', JSON.stringify(data)); this.setState({data}); }
+  sp = (positions) => { localStorage.setItem('fm_pos', JSON.stringify(positions)); this.setState({positions}); }
+  resetLayout = () => this.sp(JSON.parse(JSON.stringify(this.DP)))
+
+  onMD = (e) => {
+    if (e.target === e.currentTarget || e.target.dataset.bg === '1') {
+      this.setState({panning:true, panStart:{x:e.clientX-this.state.co.x, y:e.clientY-this.state.co.y}});
+    }
+  }
+  onMM = (e) => {
+    const {panning,panStart,dragId,dragNodeStart,dragMouseStart,positions,cs} = this.state;
+    if (panning && panStart) this.setState({co:{x:e.clientX-panStart.x, y:e.clientY-panStart.y}});
+    if (dragId && dragNodeStart && dragMouseStart) {
+      const dx=(e.clientX-dragMouseStart.x)/cs, dy=(e.clientY-dragMouseStart.y)/cs;
+      this.setState({positions:{...positions,[dragId]:{x:Math.max(0,dragNodeStart.x+dx),y:Math.max(0,dragNodeStart.y+dy)}}});
+    }
+  }
+  onMU = () => {
+    if (this.state.dragId) this.sp(this.state.positions);
+    this.setState({panning:false,panStart:null,dragId:null,dragNodeStart:null,dragMouseStart:null});
+  }
+  onND = (id, e) => {
+    e.stopPropagation();
+    this.setState({dragId:id, dragNodeStart:{...this.state.positions[id]}, dragMouseStart:{x:e.clientX,y:e.clientY}});
+  }
+
+  openEdit = (nt, id) => {
+    const arr = this.state.data[nt];
+    const item = arr && arr.find(i => i.id === id);
+    if (!item) return;
+    this.setState({modal:{nt,id,draft:JSON.parse(JSON.stringify(item))}});
+  }
+  openAdd = (nt) => {
+    const tmpl = {
+      gear:    {id:'n'+Date.now(),name:'',level:1,rarity:'Common',substats:[{key:'AS',val:0}],image:null},
+      pets:    {id:'n'+Date.now(),name:'',rarity:'Common',level:1,substats:[{key:'AS',val:0}],status:'parked',image:null},
+      mounts:  {id:'n'+Date.now(),name:'',rarity:'Common',level:1,substats:[{key:'AS',val:0}],status:'parked',image:null},
+      skills:  {id:'n'+Date.now(),name:'',drops:'',image:null},
+      techTree:{id:'n'+Date.now(),name:'',drops:'',image:null},
+      dungeons:{id:'n'+Date.now(),name:'',drops:'',image:null},
+    };
+    if (!tmpl[nt]) return;
+    this.setState({modal:{nt,id:null,draft:tmpl[nt]}});
+  }
+
+  closeModal = () => this.setState({modal:null})
+  stopProp = (e) => e.stopPropagation()
+  ud = (f,v) => this.setState(s => ({modal:{...s.modal,draft:{...s.modal.draft,[f]:v}}}))
+  usk = (i,k) => this.setState(s => { const ss=[...s.modal.draft.substats]; ss[i]={...ss[i],key:k}; return {modal:{...s.modal,draft:{...s.modal.draft,substats:ss}}}; })
+  usv = (i,v) => this.setState(s => { const ss=[...s.modal.draft.substats]; ss[i]={...ss[i],val:parseFloat(v)||0}; return {modal:{...s.modal,draft:{...s.modal.draft,substats:ss}}}; })
+  addSS = () => this.setState(s => { const ss=[...(s.modal.draft.substats||[]),{key:'AS',val:0}]; return {modal:{...s.modal,draft:{...s.modal.draft,substats:ss}}}; })
+  remSS = (i) => this.setState(s => { const ss=s.modal.draft.substats.filter((_,j)=>j!==i); return {modal:{...s.modal,draft:{...s.modal.draft,substats:ss}}}; })
+
+  saveModal = () => {
+    const {modal,data} = this.state;
+    if (!modal) return;
+    const nd = JSON.parse(JSON.stringify(data));
+    const arr = nd[modal.nt];
+    if (!arr) return;
+    if (modal.id) { const idx=arr.findIndex(x=>x.id===modal.id); if(idx>=0) arr[idx]=modal.draft; }
+    else arr.push(modal.draft);
+    this.sv(nd);
+    this.setState({modal:null});
+  }
+  delItem = () => {
+    const {modal,data} = this.state;
+    if (!modal||!modal.id) return;
+    const nd = JSON.parse(JSON.stringify(data));
+    nd[modal.nt] = nd[modal.nt].filter(i=>i.id!==modal.id);
+    this.sv(nd);
+    this.setState({modal:null});
+  }
+  dropImg = (nt, id, e) => {
+    e.preventDefault(); e.stopPropagation();
+    const f = e.dataTransfer.files[0];
+    if (!f || !f.type.startsWith('image/')) return;
+    const r = new FileReader();
+    r.onload = ev => {
+      const nd = JSON.parse(JSON.stringify(this.state.data));
+      const item = nd[nt] && nd[nt].find(i=>i.id===id);
+      if (item) { item.image=ev.target.result; this.sv(nd); }
+    };
+    r.readAsDataURL(f);
+  }
+
+  totals(items) {
+    const t = {};
+    (items||[]).forEach(item => (item.substats||[]).forEach(ss => { t[ss.key]=(t[ss.key]||0)+ss.val; }));
+    return t;
+  }
+  topAggs(items, n) {
+    const t = this.totals(items);
+    return Object.entries(t)
+      .map(([k,v]) => ({key:k,val:v,valueStr:(v>=0?'+':'')+parseFloat(v.toFixed(1))+'%',color:this.SC[k]||'#94a3b8'}))
+      .sort((a,b) => Math.abs(b.val)-Math.abs(a.val))
+      .slice(0, n);
+  }
+  makeItems(nt, items) {
+    return (items||[]).map(item => {
+      const subs = (item.substats||[]).map(ss => {
+        const v = ss.val;
+        const txt = ss.key+(v>=0?'+':'')+parseFloat(v.toFixed(2))+'%';
+        const c = this.SC[ss.key]||'#94a3b8';
+        return {
+          text:txt,
+          chipStyle:{fontSize:'8px',padding:'1px 5px',borderRadius:'2px',fontFamily:'Share Tech Mono,monospace',whiteSpace:'nowrap',background:c+'22',color:c},
+        };
+      });
+      return {
+        id:item.id, name:item.name||'',
+        level:item.level?'Lv.'+item.level:'',
+        rarity:item.rarity||'',
+        rarityStyle:{fontSize:'8px',fontWeight:'700',letterSpacing:'0.5px',textTransform:'uppercase',fontFamily:'Share Tech Mono,monospace',color:this.RC[item.rarity]||'#6b7a8d',flexShrink:0},
+        substats:subs,
+        image:item.image||'', hasImage:!!item.image, noImage:!item.image,
+        dropText:item.drops||item.description||'',
+        hasDropText:!!(item.drops||item.description),
+        onEdit:()=>this.openEdit(nt,item.id),
+        onDrop:(e)=>this.dropImg(nt,item.id,e),
+        onDragOver:(e)=>e.preventDefault(),
+      };
+    });
+  }
+
+  buildNodes(data, positions) {
+    const eq_p = data.pets.filter(p=>p.status==='equipped');
+    const pk_p = data.pets.filter(p=>p.status==='parked');
+    const eq_m = data.mounts.filter(m=>m.status==='equipped');
+    const pk_m = data.mounts.filter(m=>m.status==='parked');
+
+    const bsT = this.totals([...data.gear,...eq_p,...eq_m]);
+    const bsRows = Object.entries(bsT)
+      .map(([k,v]) => {
+        const c = this.SC[k]||'#94a3b8';
+        const w = Math.min(100,Math.abs(v)/1.5)+'%';
+        return {
+          id:k, label:k, rawVal:v,
+          value:(v>=0?'+':'')+parseFloat(v.toFixed(1))+'%',
+          barStyle:{height:'100%',borderRadius:'2px',background:c,width:w},
+          valueStyle:{fontSize:'12px',fontWeight:'700',fontFamily:'Share Tech Mono,monospace',minWidth:'58px',textAlign:'right',color:c},
+          labelStyle:{fontFamily:'Share Tech Mono,monospace',fontSize:'9px',color:'#3a5a7a',width:'74px',flexShrink:0},
+        };
+      })
+      .sort((a,b)=>Math.abs(b.rawVal)-Math.abs(a.rawVal));
+
+    const card = (id) => {
+      const p=positions[id], c=this.NC[id].color;
+      return {position:'absolute',left:p.x+'px',top:p.y+'px',width:this.CARD_W+'px',background:'#0c1420',border:'1px solid '+c+'50',borderRadius:'6px',boxShadow:'0 0 24px '+c+'12',userSelect:'none'};
+    };
+
+    const dot = (c) => ({width:'8px',height:'8px',borderRadius:'50%',flexShrink:0,background:c,boxShadow:'0 0 7px '+c+'99'});
+    const lbl = (c) => ({fontFamily:'Share Tech Mono,monospace',fontSize:'11px',letterSpacing:'2px',flex:1,color:c});
+    const asc = data.ascension||{pillar:1,tier:1};
+    const bb = {flex:1,padding:'8px 0',border:'1px solid',borderRadius:'4px',fontSize:'14px',fontWeight:'700',cursor:'pointer',fontFamily:'Share Tech Mono,monospace',letterSpacing:'0'};
+    const safeAsc = {pillar:0,tier:0};
+
+    return [
+      {id:'gear',label:'GEAR',color:this.NC.gear.color,cardStyle:card('gear'),
+       dotStyle:dot(this.NC.gear.color),labelStyle:lbl(this.NC.gear.color),
+       headerAgg:this.topAggs(data.gear,3),hasAgg:true,
+       sections:[{label:null,hasLabel:false,items:this.makeItems('gear',data.gear)}],
+       canAdd:true,isEmpty:false,isAscension:false,isBuildSummary:false,
+       buildRows:[],ascension:safeAsc,ascensionPillars:[],ascensionTiers:[],
+       onAdd:()=>this.openAdd('gear'),onDragStart:(e)=>this.onND('gear',e)},
+
+      {id:'pets',label:'PETS',color:this.NC.pets.color,cardStyle:card('pets'),
+       dotStyle:dot(this.NC.pets.color),labelStyle:lbl(this.NC.pets.color),
+       headerAgg:this.topAggs(eq_p,3),hasAgg:eq_p.length>0,
+       sections:[
+         {label:'EQUIPPED',hasLabel:true,items:this.makeItems('pets',eq_p)},
+         {label:'PARKED',  hasLabel:true,items:this.makeItems('pets',pk_p)},
+       ],
+       canAdd:true,isEmpty:false,isAscension:false,isBuildSummary:false,
+       buildRows:[],ascension:safeAsc,ascensionPillars:[],ascensionTiers:[],
+       onAdd:()=>this.openAdd('pets'),onDragStart:(e)=>this.onND('pets',e)},
+
+      {id:'mounts',label:'MOUNTS',color:this.NC.mounts.color,cardStyle:card('mounts'),
+       dotStyle:dot(this.NC.mounts.color),labelStyle:lbl(this.NC.mounts.color),
+       headerAgg:this.topAggs(eq_m,2),hasAgg:eq_m.length>0,
+       sections:[
+         {label:'MOUNTED',hasLabel:true,items:this.makeItems('mounts',eq_m)},
+         {label:'PARKED', hasLabel:true,items:this.makeItems('mounts',pk_m)},
+       ],
+       canAdd:true,isEmpty:false,isAscension:false,isBuildSummary:false,
+       buildRows:[],ascension:safeAsc,ascensionPillars:[],ascensionTiers:[],
+       onAdd:()=>this.openAdd('mounts'),onDragStart:(e)=>this.onND('mounts',e)},
+
+      {id:'buildSummary',label:'BUILD SUMMARY',color:this.NC.buildSummary.color,cardStyle:card('buildSummary'),
+       dotStyle:dot(this.NC.buildSummary.color),labelStyle:lbl(this.NC.buildSummary.color),
+       headerAgg:[],hasAgg:false,
+       sections:[],canAdd:false,isEmpty:false,isAscension:false,isBuildSummary:true,
+       buildRows:bsRows,ascension:safeAsc,ascensionPillars:[],ascensionTiers:[],
+       onAdd:null,onDragStart:(e)=>this.onND('buildSummary',e)},
+
+      {id:'skills',label:'SKILLS',color:this.NC.skills.color,cardStyle:card('skills'),
+       dotStyle:dot(this.NC.skills.color),labelStyle:lbl(this.NC.skills.color),
+       headerAgg:[],hasAgg:false,
+       sections:[{label:null,hasLabel:false,items:this.makeItems('skills',data.skills)}],
+       canAdd:true,isEmpty:(data.skills||[]).length===0,isAscension:false,isBuildSummary:false,
+       buildRows:[],ascension:safeAsc,ascensionPillars:[],ascensionTiers:[],
+       onAdd:()=>this.openAdd('skills'),onDragStart:(e)=>this.onND('skills',e)},
+
+      {id:'techTree',label:'TECH TREE',color:this.NC.techTree.color,cardStyle:card('techTree'),
+       dotStyle:dot(this.NC.techTree.color),labelStyle:lbl(this.NC.techTree.color),
+       headerAgg:[],hasAgg:false,
+       sections:[{label:null,hasLabel:false,items:this.makeItems('techTree',data.techTree)}],
+       canAdd:true,isEmpty:(data.techTree||[]).length===0,isAscension:false,isBuildSummary:false,
+       buildRows:[],ascension:safeAsc,ascensionPillars:[],ascensionTiers:[],
+       onAdd:()=>this.openAdd('techTree'),onDragStart:(e)=>this.onND('techTree',e)},
+
+      {id:'ascension',label:'ASCENSION',color:this.NC.ascension.color,cardStyle:card('ascension'),
+       dotStyle:{width:'8px',height:'8px',borderRadius:'50%',flexShrink:0,background:'#e2e8f0',boxShadow:'0 0 6px rgba(226,232,240,0.5)'},
+       labelStyle:lbl(this.NC.ascension.color),
+       headerAgg:[],hasAgg:false,
+       sections:[],canAdd:false,isEmpty:false,isAscension:true,isBuildSummary:false,
+       buildRows:[],ascension:asc,
+       ascensionPillars:[1,2,3,4].map(n=>({
+         num:n,
+         style:{...bb,borderColor:asc.pillar===n?'#e2e8f0':'#1a2d45',background:asc.pillar===n?'#e2e8f015':'transparent',color:asc.pillar===n?'#e2e8f0':'#3a5a7a'},
+         onClick:()=>{const nd={...this.state.data,ascension:{...this.state.data.ascension,pillar:n}};this.sv(nd);}
+       })),
+       ascensionTiers:[1,2,3].map(n=>({
+         num:n,
+         style:{...bb,borderColor:asc.tier===n?'#e2e8f0':'#1a2d45',background:asc.tier===n?'#e2e8f015':'transparent',color:asc.tier===n?'#e2e8f0':'#3a5a7a'},
+         onClick:()=>{const nd={...this.state.data,ascension:{...this.state.data.ascension,tier:n}};this.sv(nd);}
+       })),
+       onAdd:null,onDragStart:(e)=>this.onND('ascension',e)},
+
+      {id:'dungeons',label:'DUNGEONS',color:this.NC.dungeons.color,cardStyle:card('dungeons'),
+       dotStyle:dot(this.NC.dungeons.color),labelStyle:lbl(this.NC.dungeons.color),
+       headerAgg:[],hasAgg:false,
+       sections:[{label:null,hasLabel:false,items:this.makeItems('dungeons',data.dungeons)}],
+       canAdd:true,isEmpty:false,isAscension:false,isBuildSummary:false,
+       buildRows:[],ascension:safeAsc,ascensionPillars:[],ascensionTiers:[],
+       onAdd:()=>this.openAdd('dungeons'),onDragStart:(e)=>this.onND('dungeons',e)},
+    ];
+  }
+
+  buildEdges(positions) {
+    return this.EDGES.map(e => {
+      const s=positions[e.src], t=positions[e.tgt];
+      if (!s||!t) return null;
+      const sh=this.CARD_H[e.src]||200, th=this.CARD_H[e.tgt]||200;
+      const x1=s.x+this.CARD_W/2, y1=s.y+sh/2;
+      const x2=t.x+this.CARD_W/2, y2=t.y+th/2;
+      return {
+        id:e.id, x1,y1,x2,y2,
+        mx:(x1+x2)/2+6, my:(y1+y2)/2-6,
+        dashed:e.dashed,color:e.color,label:e.label,
+      };
+    }).filter(Boolean);
+  }
+
+  buildSvg(edges) {
+    const defs = edges.map(e => React.createElement('marker',{
+      key:'mk'+e.id, id:'arr'+e.id,
+      markerWidth:'8',markerHeight:'8',refX:'7',refY:'3',orient:'auto',
+    }, React.createElement('path',{d:'M0,0 L0,6 L8,3 z',fill:e.color+'cc'})));
+
+    const lines = edges.map(e => React.createElement('g',{key:e.id},
+      React.createElement('line',{
+        x1:e.x1,y1:e.y1,x2:e.x2,y2:e.y2,
+        stroke:e.color,strokeWidth:1.5,opacity:0.5,
+        strokeDasharray:e.dashed?'8,5':undefined,
+        markerEnd:'url(#arr'+e.id+')',
+      }),
+      React.createElement('text',{
+        x:e.mx,y:e.my,fill:e.color,
+        fontSize:9,opacity:0.65,
+        fontFamily:'Share Tech Mono,monospace',
+      },e.label)
+    ));
+    return React.createElement('svg',{
+      key:'edges',
+      style:{position:'absolute',top:0,left:0,width:this.CW+'px',height:this.CH+'px',pointerEvents:'none',overflow:'visible'},
+    },React.createElement('defs',null,...defs),...lines);
+  }
+
+  buildModal() {
+    const {modal} = this.state;
+    const empty = {
+      title:'',nodeColor:'#00d4ff',nt:'',isNew:true,canDel:false,
+      draft:{name:'',level:1,rarity:'Common',image:'',substats:[],drops:''},
+      hasSubs:false,hasLevel:false,hasRarity:false,hasStatus:false,hasDrops:false,
+      allSSK:[],allRar:[],substats:[],
+      onNC:()=>{},onLC:()=>{},onRC:()=>{},onDC:()=>{},onIC:()=>{},
+      onSE:()=>{},onSP:()=>{},eqStyle:{},pkStyle:{},
+    };
+    if (!modal) return empty;
+    const {nt,id,draft} = modal;
+    const hasSubs=['gear','pets','mounts'].includes(nt);
+    const hasLevel=['gear','pets','mounts'].includes(nt);
+    const hasRarity=['gear','pets','mounts'].includes(nt);
+    const hasStatus=['pets','mounts'].includes(nt);
+    const hasDrops=['dungeons','skills','techTree'].includes(nt);
+    const isEq = draft.status==='equipped';
+    const bb={flex:1,padding:'8px',border:'1px solid',borderRadius:'4px',fontSize:'11px',fontFamily:'Share Tech Mono,monospace',cursor:'pointer',letterSpacing:'1px'};
+    const safeDraft={...draft, image:draft.image||'', drops:draft.drops||draft.description||''};
+    return {
+      title: id?('EDIT '+this.NC[nt].label):('ADD TO '+this.NC[nt].label),
+      nodeColor:this.NC[nt]?.color||'#00d4ff',
+      nt,isNew:!id,canDel:!!id,
+      draft:safeDraft,
+      hasSubs,hasLevel,hasRarity,hasStatus,hasDrops,
+      allSSK:Object.keys(this.SC),
+      allRar:Object.keys(this.RC),
+      substats:(draft.substats||[]).map((ss,i)=>({
+        key:ss.key,val:ss.val,
+        color:this.SC[ss.key]||'#94a3b8',
+        onKC:(e)=>this.usk(i,e.target.value),
+        onVC:(e)=>this.usv(i,e.target.value),
+        onRem:()=>this.remSS(i),
+      })),
+      onNC:(e)=>this.ud('name',e.target.value),
+      onLC:(e)=>this.ud('level',parseInt(e.target.value)||1),
+      onRC:(e)=>this.ud('rarity',e.target.value),
+      onDC:(e)=>this.ud('drops',e.target.value),
+      onIC:(e)=>this.ud('image',e.target.value||null),
+      onSE:()=>this.ud('status','equipped'),
+      onSP:()=>this.ud('status','parked'),
+      eqStyle:{...bb,borderColor:isEq?'#4ade80':'#1a2d45',background:isEq?'#4ade8015':'transparent',color:isEq?'#4ade80':'#3a5a7a'},
+      pkStyle:{...bb,borderColor:!isEq?'#6b7a8d':'#1a2d45',background:!isEq?'#6b7a8d15':'transparent',color:!isEq?'#94a3b8':'#3a5a7a'},
+    };
+  }
+
+  renderVals() {
+    const {data,positions,co,cs,modal,panning} = this.state;
+    const base = {
+      canvasCursor:panning?'grabbing':'grab',
+      onMD:this.onMD, onMM:this.onMM, onMU:this.onMU,
+      resetLayout:this.resetLayout,
+      closeModal:this.closeModal, stopProp:this.stopProp,
+      addSS:this.addSS, saveModal:this.saveModal, delItem:this.delItem,
+      showModal:!!modal, md:this.buildModal(),
+      canvasStyle:{position:'absolute',top:0,left:0,transformOrigin:'0 0',
+        transform:data?`translate(${co.x}px,${co.y}px) scale(${cs})`:'none',
+        width:this.CW+'px',height:this.CH+'px'},
+    };
+    if (!data||!positions) return {...base, nodes:[], edgesSvg:null};
+    const nodes = this.buildNodes(data,positions);
+    const edges = this.buildEdges(positions);
+    return {...base, nodes, edgesSvg:this.buildSvg(edges)};
+  }
+}
+</script>
+</body>
+</html>
