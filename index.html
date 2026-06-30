@@ -20,6 +20,8 @@
 
 body {
   margin: 0;
+  height: 100vh;
+  overflow: hidden;
   background: var(--surface-0);
   color: var(--text-primary);
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
@@ -87,15 +89,15 @@ input[type="checkbox"] {
   height: auto !important;
   overflow: visible;
 }
-.etop { height: 2px; width: 100%; }
+.etop { height: 10px; width: 100%; }
 .tcheck { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-secondary); margin: 3px 0; cursor: pointer; }
 .ss-row { display: grid; grid-template-columns: 1fr 58px 12px; gap: 4px; align-items: center; margin: 4px 0; }
 </style>
 
 </head>
 <body>
-<div style="padding:1rem 1rem; min-height: 100vh; user-select: none;">
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding:0 4px;max-width:1140px;flex-wrap:wrap;gap:6px;">
+<div style="padding:0.75rem 1rem 0; height:100vh; box-sizing:border-box; display:flex; flex-direction:column; user-select:none;">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding:0 4px;flex-wrap:wrap;gap:6px;flex-shrink:0;">
   <span style="font-size:14px;font-weight:500;color:var(--text-primary);">Build tracker — Forge Master</span>
   <div style="display:flex;align-items:center;gap:10px;">
     <div style="display:flex;gap:8px;font-size:11px;color:var(--text-muted);">
@@ -105,7 +107,10 @@ input[type="checkbox"] {
       <span><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#DCA63B;margin-right:3px;vertical-align:middle;"></span>Skills</span>
       <span><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#2982D9;margin-right:3px;vertical-align:middle;"></span>Tech</span>
     </div>
-    <button onclick="resetLayout()" style="font-size:11px;padding:4px 8px;opacity:0.7;" title="Clean Up"><i class="ti ti-grid-dots" aria-hidden="true"></i> Clean Up</button>
+    <button onclick="openNewCardModal()" style="font-size:11px;padding:4px 10px;" title="Add new card"><i class="ti ti-plus" aria-hidden="true"></i> New Card</button>
+    <button onclick="snapToGrid()" style="font-size:11px;padding:4px 8px;opacity:0.7;" title="Clean Up — snap to grid">Clean Up</button>
+    <button onclick="saveRefLayout()" style="font-size:11px;padding:4px 8px;opacity:0.7;" title="Save current layout as reference"><i class="ti ti-pin" aria-hidden="true"></i> Set Home</button>
+    <button onclick="resetLayout()" style="font-size:11px;padding:4px 8px;opacity:0.5;" title="Reset to saved reference layout"><i class="ti ti-layout-grid" aria-hidden="true"></i></button>
     <button onclick="exportJSON()" style="font-size:11px;padding:4px 8px;" title="Download build as JSON"><i class="ti ti-download" aria-hidden="true"></i></button>
     <button onclick="document.getElementById('import-file').click()" style="font-size:11px;padding:4px 8px;" title="Import build from JSON"><i class="ti ti-upload" aria-hidden="true"></i></button>
     <input type="file" id="import-file" accept=".json" style="display:none;" onchange="importJSON(event)">
@@ -113,12 +118,27 @@ input[type="checkbox"] {
   </div>
 </div>
 
-<div id="canvas-wrap">
-<div id="canvas" style="position:relative;width:1140px;height:850px;background:var(--surface-1);border:0.5px solid var(--border);border-radius:12px;overflow:visible;">
-  <svg id="svg-lines" style="position:absolute;top:0;left:0;width:1140px;height:850px;pointer-events:none;"></svg>
+<div id="canvas-wrap" style="flex:1;min-height:0;">
+<div id="canvas" style="position:relative;width:100%;height:100%;background:var(--surface-1);border:0.5px solid var(--border);border-radius:12px;overflow:hidden;">
+  <svg id="svg-lines" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></svg>
   <div id="cards"></div>
 </div>
 </div>
+</div>
+
+<!-- New card modal -->
+<div id="new-card-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:999;display:none;align-items:center;justify-content:center;">
+  <div style="background:var(--surface-2);border:1px solid var(--border-strong);border-radius:12px;padding:24px 28px;min-width:320px;box-shadow:0 8px 32px rgba(0,0,0,0.5);" onclick="event.stopPropagation()">
+    <div style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:16px;">Add new card</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:20px;">
+      <button onclick="createEnt('gear')"    style="padding:10px;display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11px;"><i class="ti ti-sword" style="font-size:20px;color:#968DF2;"></i>Gear</button>
+      <button onclick="createEnt('mount')"   style="padding:10px;display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11px;"><i class="ti ti-star" style="font-size:20px;color:#2ACC97;"></i>Mount / Ride</button>
+      <button onclick="createEnt('pet')"     style="padding:10px;display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11px;"><i class="ti ti-heart" style="font-size:20px;color:#E96B3E;"></i>Pet</button>
+      <button onclick="createEnt('skills')"  style="padding:10px;display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11px;"><i class="ti ti-bolt" style="font-size:20px;color:#DCA63B;"></i>Skills</button>
+      <button onclick="createEnt('techtree')" style="padding:10px;display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11px;"><i class="ti ti-sitemap" style="font-size:20px;color:#2982D9;"></i>Tech Tree</button>
+    </div>
+    <button onclick="closeNewCardModal()" style="width:100%;padding:6px;font-size:11px;opacity:0.7;">Cancel</button>
+  </div>
 </div>
 
 <script>
@@ -152,14 +172,14 @@ const PARKED_RARITIES=['Common','Uncommon','Rare','Epic','Legendary','Mythic','U
 const RARITY_COL={
   Space:'#E96B3E',
   Interstellar:'#D946EF', 
-  Multiverse:'#2DD4BF',   
+  Multiverse:'#7DD3FC',   
   Common:'#D1D5DB',       
   Uncommon:'#2ACC97',
   Rare:'#4FA3F7',
   Epic:'#968DF2',
-  Legendary:'#DCA63B',
+  Legendary:'#FACC15',
   Mythic:'#F05B5A',
-  Ultimate:'#F05B5A'
+  Ultimate:'#DC2626'
 };
 const COL={gear:'#968DF2',mount:'#2ACC97',pet:'#E96B3E',skills:'#DCA63B',techtree:'#2982D9',parked:'#666666'};
 const NAME_ICON={
@@ -179,65 +199,80 @@ function renderIcon(iconVal,col){
 }
 
 let ENTS=[
-  // Row 0 (y=10) — 8 gear cards, step x=135
-  {id:'weapon',  label:'Weapon',         type:'gear',     icon:'ti-sword',       x:10,  y:10,  w:127,h:106},
-  {id:'gloves',  label:'Gloves',         type:'gear',     icon:'ti-hand-finger', x:145, y:10,  w:127,h:106},
-  {id:'helmet',  label:'Helmet',         type:'gear',     icon:'ti-crown',       x:280, y:10,  w:127,h:106},
-  {id:'body',    label:'Body',           type:'gear',     icon:'ti-shield',      x:415, y:10,  w:127,h:106},
-  {id:'necklace',label:'Necklace',       type:'gear',     icon:'ti-link',        x:550, y:10,  w:127,h:106},
-  {id:'ring',    label:'Ring',           type:'gear',     icon:'ti-circle',      x:685, y:10,  w:127,h:106},
-  {id:'boots',   label:'Boots',          type:'gear',     icon:'ti-arrow-up',    x:820, y:10,  w:127,h:106},
-  {id:'pelvic',  label:'Pelvic Harness', type:'gear',     icon:'ti-adjustments', x:955, y:10,  w:127,h:106},
-
-  // Row 1 (y=124) — 2 mounts, 3 inventory, 3 pets (pets on right)
-  {id:'mount1',  label:'Ride 1',         type:'mount',    icon:'ti-star',        x:10,  y:124, w:127,h:106},
-  {id:'mount2',  label:'Ride 2',         type:'mount',    icon:'ti-star-half',   x:145, y:124, w:127,h:106},
-  {id:'inv1',    label:'Inventory 1',    type:'parked',   icon:'ti-archive',     x:280, y:124, w:127,h:106},
-  {id:'inv2',    label:'Inventory 2',    type:'parked',   icon:'ti-archive',     x:415, y:124, w:127,h:106},
-  {id:'inv3',    label:'Inventory 3',    type:'parked',   icon:'ti-archive',     x:550, y:124, w:127,h:106},
-  {id:'pet1',    label:'Pet 1',          type:'pet',      icon:'ti-heart',       x:685, y:124, w:127,h:106},
-  {id:'pet2',    label:'Pet 2',          type:'pet',      icon:'ti-heart',       x:820, y:124, w:127,h:106},
-  {id:'pet3',    label:'Pet 3',          type:'pet',      icon:'ti-heart',       x:955, y:124, w:127,h:106},
-
-  // Row 2 (y=238) — 5 inventory
-  {id:'inv4',    label:'Inventory 4',    type:'parked',   icon:'ti-archive',     x:10,  y:238, w:127,h:106},
-  {id:'inv5',    label:'Inventory 5',    type:'parked',   icon:'ti-archive',     x:145, y:238, w:127,h:106},
-  {id:'inv6',    label:'Inventory 6',    type:'parked',   icon:'ti-archive',     x:280, y:238, w:127,h:106},
-  {id:'inv7',    label:'Inventory 7',    type:'parked',   icon:'ti-archive',     x:415, y:238, w:127,h:106},
-  {id:'inv8',    label:'Inventory 8',    type:'parked',   icon:'ti-archive',     x:550, y:238, w:127,h:106},
-
-  // Row 3 (y=352) — Skills & Tech Tree
-  {id:'skills',  label:'Skills',         type:'skills',   icon:'ti-bolt',        x:10,  y:352, w:112,h:116},
-  {id:'techtree',label:'Tech Tree',      type:'techtree', icon:'ti-sitemap',     x:145, y:352, w:112,h:116},
+  // Gear row 1: Head · Armor · Hands · Neck · Ring
+  {id:'helmet',  label:'Head',           type:'gear',     icon:'ti-crown',       x:10,  y:10,  w:145,h:88},
+  {id:'body',    label:'Armor',          type:'gear',     icon:'ti-shield',      x:163, y:10,  w:145,h:88},
+  {id:'gloves',  label:'Hands',          type:'gear',     icon:'ti-hand-finger', x:316, y:10,  w:145,h:88},
+  {id:'necklace',label:'Neck',           type:'gear',     icon:'ti-link',        x:469, y:10,  w:145,h:88},
+  {id:'ring',    label:'Ring',           type:'gear',     icon:'ti-circle',      x:622, y:10,  w:145,h:88},
+  // Gear row 2: Weapon · Feet · Belt · Equipped Mount
+  {id:'weapon',  label:'Weapon',         type:'gear',     icon:'ti-sword',       x:10,  y:106, w:145,h:88},
+  {id:'boots',   label:'Feet',           type:'gear',     icon:'ti-arrow-up',    x:163, y:106, w:145,h:88},
+  {id:'pelvic',  label:'Belt',           type:'gear',     icon:'ti-adjustments', x:316, y:106, w:145,h:88},
+  {id:'mount1',  label:'Mount',          type:'mount',    icon:'ti-star',        x:469, y:106, w:290,h:88},
+  // Second mount (parked/spare — not in the gear rows)
+  {id:'mount2',  label:'Ride 2',         type:'mount',    icon:'ti-star-half',   x:163, y:440, w:145,h:88},
+  {id:'inv1',    label:'Inventory 1',    type:'parked',   icon:'ti-archive',     x:163, y:536, w:145,h:88},
+  // Pets — top right
+  {id:'pet1',    label:'Pet 1',          type:'pet',      icon:'ti-heart',       x:830, y:10,  w:145,h:88},
+  {id:'pet2',    label:'Pet 2',          type:'pet',      icon:'ti-heart',       x:830, y:106, w:145,h:88},
+  {id:'pet3',    label:'Pet 3',          type:'pet',      icon:'ti-heart',       x:830, y:202, w:145,h:88},
+  {id:'inv2',    label:'Inventory 2',    type:'parked',   icon:'ti-archive',     x:830, y:298, w:145,h:88},
+  {id:'inv3',    label:'Inventory 3',    type:'parked',   icon:'ti-archive',     x:830, y:394, w:145,h:88},
+  {id:'inv4',    label:'Inventory 4',    type:'parked',   icon:'ti-archive',     x:830, y:490, w:145,h:88},
+  // Inventory & Skills — second column from right
+  {id:'inv5',    label:'Inventory 5',    type:'parked',   icon:'ti-archive',     x:677, y:10,  w:145,h:88},
+  {id:'inv6',    label:'Inventory 6',    type:'parked',   icon:'ti-archive',     x:677, y:106, w:145,h:88},
+  {id:'inv7',    label:'Inventory 7',    type:'parked',   icon:'ti-archive',     x:677, y:202, w:145,h:88},
+  {id:'inv8',    label:'Inventory 8',    type:'parked',   icon:'ti-archive',     x:677, y:298, w:145,h:88},
+  // New pets
+  {id:'pet4',    label:'Pet 4',          type:'pet',      icon:'ti-heart',       x:830, y:298, w:145,h:88},
+  {id:'pet5',    label:'Pet 5',          type:'pet',      icon:'ti-heart',       x:830, y:394, w:145,h:88},
+  {id:'inv9',    label:'Inventory 9',    type:'parked',   icon:'ti-archive',     x:677, y:394, w:145,h:88},
+  {id:'inv10',   label:'Inventory 10',   type:'parked',   icon:'ti-archive',     x:677, y:490, w:145,h:88},
+  {id:'inv11',   label:'Inventory 11',   type:'parked',   icon:'ti-archive',     x:677, y:586, w:145,h:88},
+  {id:'inv12',   label:'Inventory 12',   type:'parked',   icon:'ti-archive',     x:830, y:490, w:145,h:88},
+  {id:'inv13',   label:'Inventory 13',   type:'parked',   icon:'ti-archive',     x:830, y:586, w:145,h:88},
+  {id:'skills',  label:'Skills',         type:'skills',   icon:'ti-bolt',        x:677, y:682, w:145,h:116},
+  {id:'techtree',label:'Tech Tree',      type:'techtree', icon:'ti-sitemap',     x:677, y:518, w:145,h:116},
 ];
-const SUM={x:403,y:567,w:334,h:200};
+const SUM={x:403,y:567,w:Math.round(334*1.2),h:Math.round(200*1.2)};
 
 const SEED={
-  weapon:   {name:'Plasma Rifle',        level:81,  rarity:'Interstellar', slots:['doubleChance','healthRegen'], substats:{doubleChance:16.2, healthRegen:3.65}},
-  gloves:   {name:'Rainbow Gloves',      level:10,  rarity:'Multiverse',   slots:['lifesteal','health'],         substats:{lifesteal:19.7,    health:10.1}},
-  helmet:   {name:'Mask',                level:17,  rarity:'Multiverse',   slots:['atkSpeed','rangedDmg'],       substats:{atkSpeed:33,       rangedDmg:11.7}},
-  body:     {name:'Plasma Suit',         level:112, rarity:'Interstellar', slots:['doubleChance','cooldown'],    substats:{doubleChance:19.3, cooldown:2.46}},
-  necklace: {name:'Psi Choker',          level:45,  rarity:'Interstellar', slots:['cooldown','lifesteal'],       substats:{cooldown:4.02,     lifesteal:19.6}},
-  ring:     {name:'Connection Ring',     level:25,  rarity:'Multiverse',   slots:['health','doubleChance'],      substats:{health:12.7,       doubleChance:17.6}},
-  boots:    {name:'Ethereal Socks',      level:49,  rarity:'Multiverse',   slots:['lifesteal','critChance'],     substats:{lifesteal:6.71,    critChance:6.33}},
-  pelvic:   {name:'Pelvic Synchronizer', level:106, rarity:'Interstellar', slots:['doubleChance','lifesteal'],   substats:{doubleChance:18.6, lifesteal:16}},
+  weapon:   {name:'Plasma Rifle',        level:81,  rarity:'Interstellar', slots:['doubleChance','healthRegen'], substats:{doubleChance:16.2, healthRegen:3.65}, damage:737e3},
+  gloves:   {name:'Rainbow Gloves',      level:10,  rarity:'Multiverse',   slots:['lifesteal','health'],         substats:{lifesteal:19.7,    health:10.1},    damage:1.45e6},
+  helmet:   {name:'Mask',                level:17,  rarity:'Multiverse',   slots:['atkSpeed','rangedDmg'],       substats:{atkSpeed:33,       rangedDmg:11.7}, hp:12.4e6},
+  body:     {name:'Plasma Suit',         level:112, rarity:'Interstellar', slots:['doubleChance','cooldown'],    substats:{doubleChance:19.3, cooldown:2.46},  hp:8.03e6},
+  necklace: {name:'Psi Choker',          level:45,  rarity:'Interstellar', slots:['cooldown','lifesteal'],       substats:{cooldown:4.02,     lifesteal:19.6}, damage:475e3},
+  ring:     {name:'Connection Ring',     level:25,  rarity:'Multiverse',   slots:['health','doubleChance'],      substats:{health:12.7,       doubleChance:17.6}, damage:1.56e6},
+  boots:    {name:'Ethereal Socks',      level:49,  rarity:'Multiverse',   slots:['lifesteal','critChance'],     substats:{lifesteal:6.71,    critChance:6.33},   hp:16.3e6},
+  pelvic:   {name:'Pelvic Synchronizer', level:106, rarity:'Interstellar', slots:['doubleChance','lifesteal'],   substats:{doubleChance:18.6, lifesteal:16},      hp:6.98e6},
   
-  pet1:     {name:'Electry',             level:16,  rarity:'Ultimate',     slots:['doubleChance','meleeDmg'],    substats:{doubleChance:12.9, meleeDmg:1.22}},
-  pet2:     {name:'Electry',             level:11,  rarity:'Ultimate',     slots:['doubleChance','critDmg'],     substats:{doubleChance:18.7, critDmg:12}},
-  pet3:     {name:'Serpent',             level:20,  rarity:'Legendary',    slots:['cooldown','doubleChance'],    substats:{cooldown:6.46,     doubleChance:14.2}},
+  pet1:     {name:'Electry',             level:16,  rarity:'Ultimate',     slots:['doubleChance','meleeDmg'],    substats:{doubleChance:12.9, meleeDmg:1.22}, status:'parked', damage:78.3e6, hp:208e6},
+  pet2:     {name:'Electry',             level:11,  rarity:'Ultimate',     slots:['doubleChance','critDmg'],     substats:{doubleChance:18.7, critDmg:12},                        damage:74.5e6, hp:198e6},
+  pet3:     {name:'Serpent',             level:20,  rarity:'Legendary',    slots:['cooldown','doubleChance'],    substats:{cooldown:6.46,     doubleChance:14.2}, status:'parked', damage:16.3e6, hp:43.4e6},
+  pet4:     {name:'Electry',             level:1,   rarity:'Ultimate',     slots:['atkSpeed','lifesteal'],       substats:{atkSpeed:20.9,     lifesteal:15.9},                     damage:67.5e6, hp:180e6},
+  pet5:     {name:'Electry',             level:1,   rarity:'Ultimate',     slots:['rangedDmg','doubleChance'],   substats:{rangedDmg:5.52,    doubleChance:19.8},                  damage:67.5e6, hp:180e6},
   
-  mount1:   {name:'Lily Pad',            level:12,  rarity:'Common',       slots:['health','atkSpeed'],          substats:{health:1.21,       atkSpeed:31.2}},
-  mount2:   {name:'Brown Leaf',          level:13,  rarity:'Common',       slots:['lifesteal','rangedDmg'],      substats:{lifesteal:16.8,    rangedDmg:11}},
+  mount1:   {name:'Lily Pad',            level:12,  rarity:'Common',       slots:['health','atkSpeed'],          substats:{health:1.21,       atkSpeed:31.2},    damage:19.2e3, hp:153e3},
+  mount2:   {name:'Brown Leaf',          level:13,  rarity:'Common',       slots:['lifesteal','rangedDmg'],      substats:{lifesteal:16.8,    rangedDmg:11},     damage:19.3e3, hp:154e3},
 
   // Pre-loaded benched items
-  inv1:     {name:'Brown Leaf',          level:1,   rarity:'Common',       slots:['critDmg','atkSpeed'],         substats:{critDmg:75.8,      atkSpeed:18.7}},
-  inv2:     {name:'Treant',              level:6,   rarity:'Ultimate',     slots:['critDmg','doubleChance'],     substats:{critDmg:79.7,      doubleChance:1.42}},
-  inv3:     {name:'Enchanted Elk',       level:1,   rarity:'Ultimate',     slots:['health','critChance'],        substats:{health:7.92,       critChance:11.9}},
-  inv4:     {name:'Enchanted Elk',       level:1,   rarity:'Ultimate',     slots:['dmg','block'],                substats:{dmg:6.96,          block:2.78}},
-  inv5:     {name:'Cerberus',            level:26,  rarity:'Legendary',    slots:['dmg','atkSpeed'],             substats:{dmg:5.61,          atkSpeed:33.4}},
-  inv6:     {name:'Cerberus',            level:25,  rarity:'Legendary',    slots:['doubleChance','health'],      substats:{doubleChance:19.2, health:6.73}},
-  inv7:     {name:'Kitsune',             level:24,  rarity:'Legendary',    slots:['critChance','lifesteal'],     substats:{critChance:6.65,   lifesteal:16.8}},
-  inv8:     {name:'Serpent',             level:1,   rarity:'Legendary',    slots:['dmg','doubleChance'],         substats:{dmg:12.5,          doubleChance:16.5}},
+  inv1:     {name:'Brown Leaf',          level:1,   rarity:'Common',       slots:['critDmg','atkSpeed'],         substats:{critDmg:75.8,      atkSpeed:18.7},    damage:18e3,   hp:144e3},
+  inv2:     {name:'Treant',              level:6,   rarity:'Ultimate',     slots:['critDmg','doubleChance'],     substats:{critDmg:79.7,      doubleChance:1.42},  damage:23.6e6, hp:567e6},
+  inv3:     {name:'Enchanted Elk',       level:1,   rarity:'Ultimate',     slots:['health','critChance'],        substats:{health:7.92,       critChance:11.9},   damage:45e6,   hp:360e6},
+  inv4:     {name:'Enchanted Elk',       level:1,   rarity:'Ultimate',     slots:['dmg','block'],                substats:{dmg:6.96,          block:2.78},        damage:45e6,   hp:360e6},
+  inv5:     {name:'Cerberus',            level:26,  rarity:'Legendary',    slots:['dmg','atkSpeed'],             substats:{dmg:5.61,          atkSpeed:33.4},     damage:11.5e6, hp:92.3e6},
+  inv6:     {name:'Cerberus',            level:25,  rarity:'Legendary',    slots:['doubleChance','health'],      substats:{doubleChance:19.2, health:6.73},       damage:11.4e6, hp:91.4e6},
+  inv7:     {name:'Kitsune',             level:24,  rarity:'Legendary',    slots:['critChance','lifesteal'],     substats:{critChance:6.65,   lifesteal:16.8},    damage:16.9e6, hp:45.2e6},
+  inv8:     {name:'Serpent',             level:1,   rarity:'Legendary',    slots:['dmg','doubleChance'],         substats:{dmg:12.5,          doubleChance:16.5}, damage:13.5e6, hp:36e6},
+  inv9:     {name:'Treant',              level:1,   rarity:'Ultimate',     slots:['lifesteal','critChance'],     substats:{lifesteal:10.7,    critChance:8.36},   damage:22.5e6, hp:540e6},
+  inv10:    {name:'Treant',              level:2,   rarity:'Ultimate',     slots:['cooldown','atkSpeed'],        substats:{cooldown:5.74,     atkSpeed:35.6},     damage:22.7e6, hp:545e6},
+  inv11:    {name:'Treant',              level:1,   rarity:'Ultimate',     slots:['block','health'],             substats:{block:2.16,        health:14.2},       damage:22.5e6, hp:540e6},
+  inv12:    {name:'Enchanted Elk',       level:1,   rarity:'Ultimate',     slots:['rangedDmg','lifesteal'],      substats:{rangedDmg:14.7,    lifesteal:15.1},    damage:45e6,   hp:360e6},
+  inv13:    {name:'Enchanted Elk',       level:1,   rarity:'Ultimate',     slots:['meleeDmg','atkSpeed'],        substats:{meleeDmg:37.1,     atkSpeed:13},       damage:45e6,   hp:360e6},
+
+  skills:   {damage:1.28e6, hp:10.2e6, slots:[{name:'Bomb',level:15,stype:'Active'},{name:'Morale',level:17,stype:'Active'},{name:'Meteorite',level:15,stype:'Active'},{name:'',level:1,stype:'Active'},{name:'',level:1,stype:'Active'}]},
 };
 
 let state={}, selId=null, db=null, _saveTimer=null;
@@ -253,6 +288,20 @@ function defData(id){
   return d;
 }
 
+const DEFAULT_REF_POSITIONS={
+  helmet:{x:10,y:10},body:{x:163,y:10},gloves:{x:316,y:10},necklace:{x:469,y:10},ring:{x:622,y:10},
+  weapon:{x:10,y:106},boots:{x:163,y:106},pelvic:{x:316,y:106},
+  mount1:{x:16,y:296},mount2:{x:10,y:394},inv1:{x:163,y:394},
+  pet1:{x:1081,y:10},  pet2:{x:1234,y:10},  inv5:{x:1387,y:10},
+  inv2:{x:1081,y:106}, inv3:{x:1234,y:106}, inv4:{x:1387,y:106},
+  pet3:{x:1081,y:202}, inv8:{x:1234,y:202}, inv7:{x:1387,y:202},
+  inv6:{x:1081,y:298}, pet4:{x:1234,y:298}, pet5:{x:1387,y:298},
+  inv9:{x:1081,y:394}, inv10:{x:1234,y:394},inv11:{x:1387,y:394},
+  inv12:{x:1081,y:490},inv13:{x:1234,y:490},
+  skills:{x:648,y:680},techtree:{x:856,y:680},
+  summary:{x:622,y:394}
+};
+
 function initState(){
   ENTS.forEach(e=>{
     state[e.id]=defData(e.id);
@@ -260,7 +309,22 @@ function initState(){
     if(!s) return;
     ['name','level','rarity','imageUrl','damage','hp','status'].forEach(f=>{if(s[f]!==undefined)state[e.id][f]=s[f];});
     if(s.substats) Object.assign(state[e.id].substats, s.substats);
-    if(s.slots) state[e.id].activeSlots=s.slots;
+    if(s.slots && e.type==='skills') state[e.id].slots=s.slots;
+    else if(s.slots) state[e.id].activeSlots=s.slots;
+  });
+  state.refPositions=JSON.parse(JSON.stringify(DEFAULT_REF_POSITIONS));
+}
+function backfillSeed(){
+  ENTS.forEach(e=>{
+    const s=SEED[e.id];
+    if(!s||!state[e.id]) return;
+    if(s.damage&&!state[e.id].damage) state[e.id].damage=s.damage;
+    if(s.hp&&!state[e.id].hp) state[e.id].hp=s.hp;
+    if(e.type==='skills'&&s.slots){
+      const cur=state[e.id].slots||[];
+      const empty=cur.every(sl=>!sl.name||!sl.name.trim());
+      if(empty) state[e.id].slots=s.slots;
+    }
   });
 }
 
@@ -301,6 +365,10 @@ async function loadDB(){
       const r=st.get('_positions');
       r.onsuccess=()=>{if(r.result)state.positions=r.result.data;res();};
       r.onerror=()=>res();
+    }),new Promise(res=>{
+      const r=st.get('_refPositions');
+      r.onsuccess=()=>{if(r.result)state.refPositions=r.result.data;res();};
+      r.onerror=()=>res();
     })]);
   }catch(err){db=null;}
 }
@@ -310,6 +378,7 @@ async function saveAll(){
   const tx=db.transaction('items','readwrite'),st=tx.objectStore('items');
   ENTS.forEach(e=>st.put({id:e.id,data:state[e.id]}));
   st.put({id:'_positions',data:state.positions||{}});
+  if(state.refPositions) st.put({id:'_refPositions',data:state.refPositions});
   st.put({id:'_dynEnts',data:ENTS.filter(e=>e._dynamic)});
   await new Promise(res=>{tx.oncomplete=res;tx.onerror=res;});
   btn.innerHTML='<i class="ti ti-check" aria-hidden="true"></i> Saved';
@@ -377,15 +446,6 @@ function cardBody(e,d,isSel){
 
   const t = ((d.status||'equipped')==='parked' && !isSel) ? totals() : null;
 
-  let baseRows='';
-  const dmgV=parseFloat(d.damage)||0, hpV=parseFloat(d.hp)||0;
-  if(dmgV>0||hpV>0){
-    baseRows=`<div style="display:flex;gap:8px;font-size:10px;color:var(--text-secondary);padding:1px 0;margin-bottom:2px;">`
-      +(dmgV>0?`<span>⚔ <span style="font-weight:500;color:var(--text-primary);">${fmtBig(dmgV)}</span></span>`:'')
-      +(hpV>0?`<span>♥ <span style="font-weight:500;color:var(--text-primary);">${fmtBig(hpV)}</span></span>`:'')
-      +`</div>`;
-  }
-
   const rows=sortedSlots.map(k=>{
     const s=SS.find(ss=>ss.k===k),v=parseFloat((d.substats||{})[k])||0;
     if(!s) return '';
@@ -396,7 +456,7 @@ function cardBody(e,d,isSel){
     }
     return `<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-secondary);padding:1px 0;"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;">${s.l}${delta}</span><span style="font-weight:500;color:${v>0?'var(--text-primary)':'var(--text-muted)'};flex-shrink:0;margin-left:4px;">${v>0?fmtVal(v)+'%':'—'}</span></div>`;
   }).join('');
-  return `<div style="padding:3px 9px 8px;">${baseRows}${rows}</div>`;
+  return `<div style="padding:3px 9px 8px;">${rows}</div>`;
 }
 
 function ssOptions(selectedKey){
@@ -471,9 +531,14 @@ function makeInlineEditor(e,d){
 
   const curStatus=(d.status||'equipped');
   const showStatus=isMount||isPet||isParked;
+  let equipDisabled=false;
+  if((isPet||isParked)&&curStatus!=='equipped'){
+    const eqCount=ENTS.filter(x=>(x.type==='pet'||x.type==='parked')&&(state[x.id]?.status||'equipped')==='equipped').length;
+    equipDisabled=eqCount>=3;
+  }
   const statusBtns=showStatus?`
     <div style="display:flex;gap:4px;margin-top:4px;">
-      <button onclick="updField('${e.id}','status','equipped')" style="font-size:9px;padding:2px 6px;flex:1;${curStatus==='equipped'?'background:#2ACC97;color:#fff;border-color:#2ACC97;font-weight:600;':'opacity:0.55;'}">Equipped</button>
+      <button onclick="updField('${e.id}','status','equipped')" ${equipDisabled?'disabled':''} style="font-size:9px;padding:2px 6px;flex:1;${curStatus==='equipped'?'background:#2ACC97;color:#fff;border-color:#2ACC97;font-weight:600;':equipDisabled?'opacity:0.3;cursor:not-allowed;':'opacity:0.55;'}">${equipDisabled?'Full (3/3)':'Equipped'}</button>
       <button onclick="updField('${e.id}','status','parked')" style="font-size:9px;padding:2px 6px;flex:1;${curStatus==='parked'?'background:#666;color:#fff;border-color:#666;font-weight:600;':'opacity:0.55;'}">Parked</button>
     </div>`:'';
   return `<div style="padding:2px 9px 8px;" onclick="event.stopPropagation();">
@@ -496,12 +561,12 @@ function renderCards(){
     const isParked=(d.status||'equipped')==='parked';
     const statusFooter=isStatEnt&&!isSel
       ?(isParked
-        ?`<div style="position:absolute;bottom:0;left:0;right:0;height:14px;background:#1e1e1e;display:flex;align-items:center;justify-content:center;"><span style="font-size:7px;letter-spacing:1px;font-weight:600;color:#666;">PARKED</span></div>`
-        :`<div style="position:absolute;bottom:0;left:0;right:0;height:14px;background:#0f2a1a;display:flex;align-items:center;justify-content:center;"><span style="font-size:7px;letter-spacing:1px;font-weight:600;color:#2ACC97;">EQUIPPED</span></div>`)
+        ?`<div style="position:absolute;bottom:0;left:0;right:0;height:10px;background:#1e1e1e;display:flex;align-items:center;justify-content:center;"><span style="font-size:7px;letter-spacing:1px;font-weight:600;color:#666;">PARKED</span></div>`
+        :`<div style="position:absolute;bottom:0;left:0;right:0;height:10px;background:#2ACC97;display:flex;align-items:center;justify-content:center;"><span style="font-size:7px;letter-spacing:1px;font-weight:600;color:#0f2a1a;">EQUIPPED</span></div>`)
       :'';
     let subtitle='';
-    if(e.type==='gear'&&d.name) subtitle=e.label+(d.rarity?` · ${d.rarity}`:'');
-    else if(e.type==='gear'&&d.rarity) subtitle=d.rarity;
+    if(e.type==='gear'&&d.name) subtitle=e.label+(d.rarity?` · ${d.rarity}`:'')+(d.level?lv:'');
+    else if(e.type==='gear') subtitle=(d.rarity||'')+(d.level?lv:'');
     else if((e.type==='mount'||e.type==='pet'||e.type==='parked')&&(d.rarity||d.level)) subtitle=`${d.rarity||''}${lv}`;
     const tcol=d.rarity&&RARITY_COL[d.rarity]?RARITY_COL[d.rarity]:col;
     
@@ -524,6 +589,7 @@ function renderCards(){
           <div style="font-size:11px;font-weight:500;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${title}${!d.name&&e.type==='gear'&&lv?lv:''}</div>
           ${subtitle?`<div style="font-size:9px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${subtitle}</div>`:''}
         </div>
+        ${(()=>{const dv=parseFloat(d.damage)||0,hv=parseFloat(d.hp)||0;return(dv||hv)?`<div style="display:flex;flex-direction:column;align-items:flex-end;font-size:7px;color:var(--text-muted);flex-shrink:0;line-height:1.3;">${dv?`<span>⚔${fmtBig(dv)}</span>`:''}${hv?`<span>♥${fmtBig(hv)}</span>`:''}</div>`:''})()}
         ${isSel?`<button onclick="closeEdit(event)" style="font-size:11px;padding:0 5px;line-height:17px;border-radius:3px;flex-shrink:0;opacity:0.7;" title="Close">×</button>`:''}
       </div>
       ${cardBody(e,d,isSel)}
@@ -564,7 +630,7 @@ function renderCards(){
     </div>`;
   }).join('');
   const sumPos=state.positions&&state.positions["summary"]?state.positions["summary"]:{x:SUM.x,y:SUM.y};
-  h+=`<div class="ecard summary${isSumSel?' sel':''}" data-eid="summary" style="left:${sumPos.x}px;top:${sumPos.y}px;width:${SUM.w}px;height:${SUM.h}px;cursor:pointer;" onmousedown="startDrag(event,'summary')" onclick="cardClick(event,'summary')">
+  h+=`<div class="ecard summary${isSumSel?' sel':''}" data-eid="summary" style="left:${sumPos.x}px;top:${sumPos.y}px;width:${SUM.w}px;cursor:pointer;" onmousedown="startDrag(event,'summary')" onclick="cardClick(event,'summary')">
     <div class="etop" style="background:#378ADD;"></div>
     <div style="padding:6px 12px 4px;display:flex;align-items:center;justify-content:space-between;">
       <div style="display:flex;align-items:center;gap:5px;">
@@ -636,12 +702,14 @@ function updField(id,f,v){
   if(f==='status'&&v==='equipped'){
     const ent=ENTS.find(e=>e.id===id);
     if(ent?.type==='mount'){
-      // only one mount equipped at a time
       ENTS.filter(e=>e.type==='mount'&&e.id!==id).forEach(e=>{state[e.id].status='parked';});
-    } else if(ent?.type==='pet'){
-      // only three pets equipped at a time — park the first equipped one if over limit
-      const equipped=ENTS.filter(e=>e.type==='pet'&&e.id!==id&&(state[e.id].status||'equipped')==='equipped');
-      if(equipped.length>=3) state[equipped[0].id].status='parked';
+    } else if(ent?.type==='pet'||ent?.type==='parked'){
+      const isPetType=t=>t==='pet'||t==='parked';
+      const equipped=ENTS.filter(e=>isPetType(e.type)&&e.id!==id&&(state[e.id]?.status||'equipped')==='equipped');
+      if(equipped.length>=3){
+        state[id].status='parked';
+        renderCards();queueSave();return;
+      }
     }
   }
   renderCards();
@@ -663,6 +731,34 @@ function updTechNode(nid,checked){
 function clearEnt(id){
   state[id]=defData(id);
   renderCards();queueSave();
+}
+
+const TYPE_ICON={gear:'ti-sword',mount:'ti-star',pet:'ti-heart',parked:'ti-archive',skills:'ti-bolt',techtree:'ti-sitemap'};
+const TYPE_LABEL={gear:'Gear',mount:'Ride',pet:'Pet',parked:'Inventory',skills:'Skills',techtree:'Tech Tree'};
+
+function openNewCardModal(){
+  const m=document.getElementById('new-card-modal');
+  m.style.display='flex';
+  m.onclick=closeNewCardModal;
+}
+function closeNewCardModal(){
+  document.getElementById('new-card-modal').style.display='none';
+}
+
+function createEnt(type){
+  closeNewCardModal();
+  const canvas=document.getElementById('canvas');
+  const cW=canvas?canvas.clientWidth:800, cH=canvas?canvas.clientHeight:600;
+  const id=type+'_'+Date.now();
+  const isSkillType=type==='skills'||type==='techtree';
+  const w=145, h=isSkillType?116:88;
+  const newEnt={id,label:TYPE_LABEL[type],type,icon:TYPE_ICON[type],x:Math.round(cW/2-w/2),y:Math.round(cH/2-h/2),w,h,_dynamic:true};
+  ENTS.push(newEnt);
+  state[id]=defData(id);
+  if(!state.positions)state.positions={};
+  state.positions[id]={x:newEnt.x,y:newEnt.y};
+  selId=id;
+  renderCards();saveAll();
 }
 
 function dupEnt(srcId){
@@ -780,42 +876,201 @@ document.addEventListener('mouseup',function(ev){
     // cardClick on the card will fire next and handle selection
   }
 });
-function resetLayout(){
-  const GAP=8, MARGIN=10;
-  const cellW=135, cellH=114; // card w/h + gap (127+8, 106+8)
-  const maxCols=Math.floor((1140-MARGIN)/cellW);
+function autoLayout(){
+  const canvas=document.getElementById('canvas');
+  if(!canvas)return;
+  const cW=canvas.clientWidth, cH=canvas.clientHeight;
+  const cw=145, ch=88, gap=8, pad=10, row=ch+gap;
+  if(!state.positions)state.positions={};
+  const p=state.positions;
 
-  // Find each card's nearest grid cell based on current position
-  const cards=ENTS.map(e=>{
-    const pos=(state.positions&&state.positions[e.id])||{x:e.x,y:e.y};
-    return {e, col:Math.max(0,Math.round((pos.x-MARGIN)/cellW)), row:Math.max(0,Math.round((pos.y-MARGIN)/cellH))};
+  // Gear row 1 (top-left): Head · Armor · Hands · Neck · Ring
+  ['helmet','body','gloves','necklace','ring'].forEach((id,i)=>p[id]={x:pad+i*(cw+gap),y:pad});
+  // Gear row 2: Weapon · Feet · Belt · [Equipped Mount — double width]
+  ['weapon','boots','pelvic'].forEach((id,i)=>p[id]={x:pad+i*(cw+gap),y:pad+row});
+  const ringRightEdge=pad+4*(cw+gap)+cw;
+  p['mount1']={x:ringRightEdge-290,y:pad+row}; // right-align to Ring card
+
+  // Spare mount + inv1 — center left
+  const mountY=Math.round(cH/2)-row;
+  p['mount2']={x:pad,y:mountY};
+  p['inv1']  ={x:pad+cw+gap,y:mountY};
+
+  // Pets — top right, 3 columns
+  // Gather ALL pet-type entities, sort: equipped first (max 3), then by rarity desc
+  const RARITY_RANK={'Mythic':6,'Ultimate':5,'Legendary':4,'Epic':3,'Rare':2,'Uncommon':1,'Common':0,'':-1};
+  const petSlotIds=ENTS.filter(e=>e.type==='pet').map(e=>e.id);
+  const petParkedIds=ENTS.filter(e=>e.type==='parked'&&e.id!=='inv1').map(e=>e.id);
+  const petAllIds=[...petSlotIds,...petParkedIds];
+
+  // Sort: equipped first, then by rarity desc within each group
+  petAllIds.sort((a,b)=>{
+    const da=state[a]||{}, db=state[b]||{};
+    const ae=(da.status||'equipped')==='equipped', be=(db.status||'equipped')==='equipped';
+    if(ae!==be) return be-ae;
+    return (RARITY_RANK[db.rarity]??-1)-(RARITY_RANK[da.rarity]??-1);
   });
 
-  // Assign cells, resolving collisions by scanning forward in reading order
-  const occupied=new Set();
-  const newPos={};
-  for(const c of cards){
-    let {col,row}=c;
-    let placed=false;
-    for(let r=row;r<row+40&&!placed;r++){
-      for(let cc=(r===row?col:0);cc<maxCols&&!placed;cc++){
-        if(!occupied.has(`${cc},${r}`)){col=cc;row=r;placed=true;}
-      }
-    }
-    occupied.add(`${col},${row}`);
-    newPos[c.e.id]={x:MARGIN+col*cellW,y:MARGIN+row*cellH};
-  }
-  newPos['summary']={x:SUM.x,y:SUM.y};
-  state.positions=newPos;
-  renderCards();drawLines();queueSave();
+  const petBlockW=3*(cw+gap)-gap;
+  const petStartX=cW-petBlockW-pad;
+  petAllIds.forEach((id,i)=>{
+    p[id]={x:petStartX+(i%3)*(cw+gap), y:pad+Math.floor(i/3)*row};
+  });
+
+  // Skills & Tech Tree — bottom center, 1/3 from bottom
+  const skillY=Math.round(cH*2/3);
+  const skillsW=145, techW=145, totalW=skillsW+gap+techW;
+  const skillsX=Math.round(cW/2-totalW/2);
+  p['skills']  ={x:skillsX,         y:skillY};
+  p['techtree']={x:skillsX+skillsW+gap, y:skillY};
+
+  // Build Summary — centered
+  p['summary']={
+    x:Math.round(cW/2-SUM.w/2),
+    y:Math.round(cH/2-SUM.h/2)
+  };
+
+  clampPositions();renderCards();drawLines();queueSave();
 }
 
+function clampPositions(){
+  const canvas=document.getElementById('canvas');
+  if(!canvas||!state.positions)return;
+  const cW=canvas.clientWidth,cH=canvas.clientHeight,pad=10;
+  ENTS.forEach(e=>{
+    const p=state.positions[e.id];
+    if(!p)return;
+    p.x=Math.max(pad,Math.min(p.x,cW-e.w-pad));
+    p.y=Math.max(pad,Math.min(p.y,cH-e.h-pad));
+  });
+  const sp=state.positions['summary'];
+  if(sp){
+    sp.x=Math.max(pad,Math.min(sp.x,cW-SUM.w-pad));
+    sp.y=Math.max(pad,Math.min(sp.y,cH-SUM.h-pad));
+  }
+}
+
+function snapToGrid(){
+  const canvas=document.getElementById('canvas');
+  if(!canvas)return;
+  const cw=145,ch=88,gap=8,pad=10,cellW=cw+gap,cellH=ch+gap;
+  const cW=canvas.clientWidth,cH=canvas.clientHeight;
+  const maxCols=Math.max(1,Math.floor((cW-pad*2)/cellW));
+  const maxRows=Math.max(1,Math.floor((cH-pad*2)/cellH));
+
+  const occupied=new Set();
+  function markCols(col,row,cols){for(let c=0;c<cols;c++)occupied.add(`${col+c},${row}`);}
+  function isFree(col,row,cols){
+    if(row>=maxRows) return false;
+    if(col+cols>maxCols) return false;
+    for(let c=0;c<cols;c++){if(occupied.has(`${col+c},${row}`))return false;}
+    return true;
+  }
+
+  const RARITY_RANK={'Mythic':6,'Ultimate':5,'Legendary':4,'Epic':3,'Rare':2,'Uncommon':1,'Common':0,'':-1};
+  const petSlotIds=new Set(ENTS.filter(e=>e.type==='pet').map(e=>e.id));
+  const petParkedIds=new Set(ENTS.filter(e=>e.type==='parked'&&e.id!=='inv1').map(e=>e.id));
+  const isPet=id=>petSlotIds.has(id)||petParkedIds.has(id);
+
+  const petIds=[...petSlotIds,...petParkedIds];
+  petIds.sort((a,b)=>{
+    const da=state[a]||{},db2=state[b]||{};
+    const ae=(da.status||'equipped')==='equipped',be=(db2.status||'equipped')==='equipped';
+    if(ae!==be) return be-ae;
+    return (RARITY_RANK[db2.rarity]??-1)-(RARITY_RANK[da.rarity]??-1);
+  });
+
+  const pinned=new Set(['skills','techtree','summary']);
+  const nonPetItems=ENTS.filter(e=>!isPet(e.id)&&!pinned.has(e.id)).map(e=>{
+    const pos=(state.positions&&state.positions[e.id])||{x:e.x,y:e.y};
+    return {id:e.id,x:pos.x,y:pos.y,cols:Math.max(1,Math.round(e.w/cellW))};
+  });
+  nonPetItems.sort((a,b)=>{
+    const ar=Math.round((a.y-pad)/cellH),br=Math.round((b.y-pad)/cellH);
+    if(ar!==br) return ar-br;
+    return Math.round((a.x-pad)/cellW)-Math.round((b.x-pad)/cellW);
+  });
+
+  const newPos={};
+
+  for(const item of nonPetItems){
+    const targetCol=Math.min(Math.max(0,Math.round((item.x-pad)/cellW)),Math.max(0,maxCols-item.cols));
+    const targetRow=Math.min(Math.max(0,Math.round((item.y-pad)/cellH)),maxRows-1);
+    let placed=false;
+    outer:for(let r=targetRow;r<maxRows;r++){
+      const startC=r===targetRow?targetCol:0;
+      for(let c=startC;c<=maxCols-item.cols;c++){
+        if(isFree(c,r,item.cols)){markCols(c,r,item.cols);newPos[item.id]={x:pad+c*cellW,y:pad+r*cellH};placed=true;break outer;}
+      }
+    }
+    if(!placed){
+      for(let r=0;r<maxRows;r++){
+        for(let c=0;c<=maxCols-item.cols;c++){
+          if(isFree(c,r,item.cols)){markCols(c,r,item.cols);newPos[item.id]={x:pad+c*cellW,y:pad+r*cellH};placed=true;break;}
+        }
+        if(placed)break;
+      }
+    }
+    if(!placed) newPos[item.id]={x:Math.max(pad,Math.min(item.x,cW-item.cols*cellW-pad)),y:Math.max(pad,Math.min(item.y,cH-ch-pad))};
+  }
+
+  const firstPetPos=(state.positions&&state.positions[petIds[0]])||{x:ENTS.find(e=>e.id===petIds[0])?.x||pad,y:ENTS.find(e=>e.id===petIds[0])?.y||pad};
+  const anchorCol=Math.min(Math.max(0,Math.round((firstPetPos.x-pad)/cellW)),Math.max(0,maxCols-3));
+  const anchorRow=Math.max(0,Math.round((firstPetPos.y-pad)/cellH));
+
+  petIds.forEach((id,i)=>{
+    const col=anchorCol+(i%3);
+    const row=anchorRow+Math.floor(i/3);
+    const cx=Math.min(col,maxCols-1);
+    const ry=Math.min(row,maxRows-1);
+    markCols(cx,ry,1);
+    newPos[id]={x:pad+cx*cellW,y:pad+ry*cellH};
+  });
+
+  // Snap pinned cards (skills, techtree) to nearest grid cell within bounds
+  pinned.forEach(pid=>{
+    const ent=ENTS.find(e=>e.id===pid);
+    if(!ent)return;
+    const pos=(state.positions&&state.positions[pid])||{x:ent.x,y:ent.y};
+    const c=Math.min(Math.max(0,Math.round((pos.x-pad)/cellW)),maxCols-1);
+    const r=Math.min(Math.max(0,Math.round((pos.y-pad)/cellH)),maxRows-1);
+    newPos[pid]={x:pad+c*cellW,y:pad+r*cellH};
+  });
+
+  // Snap summary to nearest grid cell within bounds
+  const sumPos2=(state.positions&&state.positions['summary'])||{x:SUM.x,y:SUM.y};
+  const sumCols=Math.max(1,Math.round(SUM.w/cellW));
+  const sc2=Math.min(Math.max(0,Math.round((sumPos2.x-pad)/cellW)),Math.max(0,maxCols-sumCols));
+  const sr=Math.min(Math.max(0,Math.round((sumPos2.y-pad)/cellH)),maxRows-1);
+  newPos['summary']={x:pad+sc2*cellW,y:pad+sr*cellH};
+
+  state.positions={...(state.positions||{}),...newPos};
+  clampPositions();renderCards();drawLines();queueSave();
+}
+
+function saveRefLayout(){
+  state.refPositions=JSON.parse(JSON.stringify(state.positions||{}));
+  queueSave();
+  const btn=document.querySelector('[title*="Save current layout"]');
+  if(btn){const orig=btn.innerHTML;btn.innerHTML='<i class="ti ti-check" aria-hidden="true"></i> Saved';setTimeout(()=>{btn.innerHTML=orig;},1200);}
+}
+function resetLayout(){
+  if(state.refPositions&&Object.keys(state.refPositions).length){
+    state.positions=JSON.parse(JSON.stringify(state.refPositions));
+    clampPositions();renderCards();drawLines();queueSave();
+  }else{autoLayout();}
+}
+
+let _resizeTimer;
+window.addEventListener('resize',()=>{clearTimeout(_resizeTimer);_resizeTimer=setTimeout(()=>{clampPositions();renderCards();drawLines();},150);});
+
 async function init(){
-  initState();await loadDB();
-  // reset summary to centred 2/3-down position, overriding any stale saved position
-  if(!state.positions)state.positions={};
-  state.positions['summary']={x:SUM.x,y:SUM.y};
-  drawLines();renderCards();
+  initState();await loadDB();backfillSeed();
+  if(state.positions&&Object.keys(state.positions).length){
+    clampPositions();renderCards();drawLines();
+  }else{
+    autoLayout();
+  }
 }
 init();
 </script>
