@@ -118,8 +118,8 @@ input[type="checkbox"] {
   </div>
 </div>
 
-<div id="canvas-wrap" style="flex:1;min-height:0;">
-<div id="canvas" style="position:relative;width:100%;height:100%;background:var(--surface-1);border:0.5px solid var(--border);border-radius:12px;overflow:hidden;">
+<div id="canvas-wrap" style="flex:1;min-height:0;overflow:visible;">
+<div id="canvas" style="position:relative;width:100%;height:100%;background:var(--surface-1);border:0.5px solid var(--border);border-radius:12px;overflow:visible;transform-origin:0 0;">
   <svg id="svg-lines" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></svg>
   <div id="cards"></div>
 </div>
@@ -200,39 +200,39 @@ function renderIcon(iconVal,col){
 
 let ENTS=[
   // Gear row 1: Head · Armor · Hands · Neck · Ring
-  {id:'helmet',  label:'Head',           type:'gear',     icon:'ti-crown',       x:10,  y:10,  w:145,h:88},
-  {id:'body',    label:'Armor',          type:'gear',     icon:'ti-shield',      x:163, y:10,  w:145,h:88},
-  {id:'gloves',  label:'Hands',          type:'gear',     icon:'ti-hand-finger', x:316, y:10,  w:145,h:88},
-  {id:'necklace',label:'Neck',           type:'gear',     icon:'ti-link',        x:469, y:10,  w:145,h:88},
-  {id:'ring',    label:'Ring',           type:'gear',     icon:'ti-circle',      x:622, y:10,  w:145,h:88},
+  {id:'helmet',  label:'Head',           type:'gear',     icon:'ti-crown',       x:10,  y:10,  w:145,h:100},
+  {id:'body',    label:'Armor',          type:'gear',     icon:'ti-shield',      x:163, y:10,  w:145,h:100},
+  {id:'gloves',  label:'Hands',          type:'gear',     icon:'ti-hand-finger', x:316, y:10,  w:145,h:100},
+  {id:'necklace',label:'Neck',           type:'gear',     icon:'ti-link',        x:469, y:10,  w:145,h:100},
+  {id:'ring',    label:'Ring',           type:'gear',     icon:'ti-circle',      x:622, y:10,  w:145,h:100},
   // Gear row 2: Weapon · Feet · Belt · Equipped Mount
-  {id:'weapon',  label:'Weapon',         type:'gear',     icon:'ti-sword',       x:10,  y:106, w:145,h:88},
-  {id:'boots',   label:'Feet',           type:'gear',     icon:'ti-arrow-up',    x:163, y:106, w:145,h:88},
-  {id:'pelvic',  label:'Belt',           type:'gear',     icon:'ti-adjustments', x:316, y:106, w:145,h:88},
-  {id:'mount1',  label:'Mount',          type:'mount',    icon:'ti-star',        x:469, y:106, w:290,h:88},
+  {id:'weapon',  label:'Weapon',         type:'gear',     icon:'ti-sword',       x:10,  y:106, w:145,h:100},
+  {id:'boots',   label:'Feet',           type:'gear',     icon:'ti-arrow-up',    x:163, y:106, w:145,h:100},
+  {id:'pelvic',  label:'Belt',           type:'gear',     icon:'ti-adjustments', x:316, y:106, w:145,h:100},
+  {id:'mount1',  label:'Mount',          type:'mount',    icon:'ti-star',        x:469, y:106, w:290,h:100},
   // Second mount (parked/spare — not in the gear rows)
-  {id:'mount2',  label:'Ride 2',         type:'mount',    icon:'ti-star-half',   x:163, y:440, w:145,h:88},
-  {id:'inv1',    label:'Inventory 1',    type:'parked',   icon:'ti-archive',     x:163, y:536, w:145,h:88},
+  {id:'mount2',  label:'Ride 2',         type:'mount',    icon:'ti-star-half',   x:163, y:440, w:145,h:100},
+  {id:'inv1',    label:'Inventory 1',    type:'parked',   icon:'ti-archive',     x:163, y:536, w:145,h:100},
   // Pets — top right
-  {id:'pet1',    label:'Pet 1',          type:'pet',      icon:'ti-heart',       x:830, y:10,  w:145,h:88},
-  {id:'pet2',    label:'Pet 2',          type:'pet',      icon:'ti-heart',       x:830, y:106, w:145,h:88},
-  {id:'pet3',    label:'Pet 3',          type:'pet',      icon:'ti-heart',       x:830, y:202, w:145,h:88},
-  {id:'inv2',    label:'Inventory 2',    type:'parked',   icon:'ti-archive',     x:830, y:298, w:145,h:88},
-  {id:'inv3',    label:'Inventory 3',    type:'parked',   icon:'ti-archive',     x:830, y:394, w:145,h:88},
-  {id:'inv4',    label:'Inventory 4',    type:'parked',   icon:'ti-archive',     x:830, y:490, w:145,h:88},
+  {id:'pet1',    label:'Pet 1',          type:'pet',      icon:'ti-heart',       x:830, y:10,  w:145,h:100},
+  {id:'pet2',    label:'Pet 2',          type:'pet',      icon:'ti-heart',       x:830, y:106, w:145,h:100},
+  {id:'pet3',    label:'Pet 3',          type:'pet',      icon:'ti-heart',       x:830, y:202, w:145,h:100},
+  {id:'inv2',    label:'Inventory 2',    type:'parked',   icon:'ti-archive',     x:830, y:298, w:145,h:100},
+  {id:'inv3',    label:'Inventory 3',    type:'parked',   icon:'ti-archive',     x:830, y:394, w:145,h:100},
+  {id:'inv4',    label:'Inventory 4',    type:'parked',   icon:'ti-archive',     x:830, y:490, w:145,h:100},
   // Inventory & Skills — second column from right
-  {id:'inv5',    label:'Inventory 5',    type:'parked',   icon:'ti-archive',     x:677, y:10,  w:145,h:88},
-  {id:'inv6',    label:'Inventory 6',    type:'parked',   icon:'ti-archive',     x:677, y:106, w:145,h:88},
-  {id:'inv7',    label:'Inventory 7',    type:'parked',   icon:'ti-archive',     x:677, y:202, w:145,h:88},
-  {id:'inv8',    label:'Inventory 8',    type:'parked',   icon:'ti-archive',     x:677, y:298, w:145,h:88},
+  {id:'inv5',    label:'Inventory 5',    type:'parked',   icon:'ti-archive',     x:677, y:10,  w:145,h:100},
+  {id:'inv6',    label:'Inventory 6',    type:'parked',   icon:'ti-archive',     x:677, y:106, w:145,h:100},
+  {id:'inv7',    label:'Inventory 7',    type:'parked',   icon:'ti-archive',     x:677, y:202, w:145,h:100},
+  {id:'inv8',    label:'Inventory 8',    type:'parked',   icon:'ti-archive',     x:677, y:298, w:145,h:100},
   // New pets
-  {id:'pet4',    label:'Pet 4',          type:'pet',      icon:'ti-heart',       x:830, y:298, w:145,h:88},
-  {id:'pet5',    label:'Pet 5',          type:'pet',      icon:'ti-heart',       x:830, y:394, w:145,h:88},
-  {id:'inv9',    label:'Inventory 9',    type:'parked',   icon:'ti-archive',     x:677, y:394, w:145,h:88},
-  {id:'inv10',   label:'Inventory 10',   type:'parked',   icon:'ti-archive',     x:677, y:490, w:145,h:88},
-  {id:'inv11',   label:'Inventory 11',   type:'parked',   icon:'ti-archive',     x:677, y:586, w:145,h:88},
-  {id:'inv12',   label:'Inventory 12',   type:'parked',   icon:'ti-archive',     x:830, y:490, w:145,h:88},
-  {id:'inv13',   label:'Inventory 13',   type:'parked',   icon:'ti-archive',     x:830, y:586, w:145,h:88},
+  {id:'pet4',    label:'Pet 4',          type:'pet',      icon:'ti-heart',       x:830, y:298, w:145,h:100},
+  {id:'pet5',    label:'Pet 5',          type:'pet',      icon:'ti-heart',       x:830, y:394, w:145,h:100},
+  {id:'inv9',    label:'Inventory 9',    type:'parked',   icon:'ti-archive',     x:677, y:394, w:145,h:100},
+  {id:'inv10',   label:'Inventory 10',   type:'parked',   icon:'ti-archive',     x:677, y:490, w:145,h:100},
+  {id:'inv11',   label:'Inventory 11',   type:'parked',   icon:'ti-archive',     x:677, y:586, w:145,h:100},
+  {id:'inv12',   label:'Inventory 12',   type:'parked',   icon:'ti-archive',     x:830, y:490, w:145,h:100},
+  {id:'inv13',   label:'Inventory 13',   type:'parked',   icon:'ti-archive',     x:830, y:586, w:145,h:100},
   {id:'skills',  label:'Skills',         type:'skills',   icon:'ti-bolt',        x:677, y:682, w:145,h:116},
   {id:'techtree',label:'Tech Tree',      type:'techtree', icon:'ti-sitemap',     x:677, y:518, w:145,h:116},
 ];
@@ -255,7 +255,7 @@ const SEED={
   pet5:     {name:'Electry',             level:1,   rarity:'Ultimate',     slots:['rangedDmg','doubleChance'],   substats:{rangedDmg:5.52,    doubleChance:19.8},                  damage:67.5e6, hp:180e6},
   
   mount1:   {name:'Lily Pad',            level:12,  rarity:'Common',       slots:['health','atkSpeed'],          substats:{health:1.21,       atkSpeed:31.2},    damage:19.2e3, hp:153e3},
-  mount2:   {name:'Brown Leaf',          level:13,  rarity:'Common',       slots:['lifesteal','rangedDmg'],      substats:{lifesteal:16.8,    rangedDmg:11},     damage:19.3e3, hp:154e3},
+  mount2:   {name:'Brown Leaf',          level:13,  rarity:'Common',       slots:['lifesteal','rangedDmg'],      substats:{lifesteal:16.8,    rangedDmg:11},     damage:19.3e3, hp:154e3, status:'parked'},
 
   // Pre-loaded benched items
   inv1:     {name:'Brown Leaf',          level:1,   rarity:'Common',       slots:['critDmg','atkSpeed'],         substats:{critDmg:75.8,      atkSpeed:18.7},    damage:18e3,   hp:144e3},
@@ -272,7 +272,7 @@ const SEED={
   inv12:    {name:'Enchanted Elk',       level:1,   rarity:'Ultimate',     slots:['rangedDmg','lifesteal'],      substats:{rangedDmg:14.7,    lifesteal:15.1},    damage:45e6,   hp:360e6},
   inv13:    {name:'Enchanted Elk',       level:1,   rarity:'Ultimate',     slots:['meleeDmg','atkSpeed'],        substats:{meleeDmg:37.1,     atkSpeed:13},       damage:45e6,   hp:360e6},
 
-  skills:   {damage:1.28e6, hp:10.2e6, slots:[{name:'Bomb',level:15,stype:'Active'},{name:'Morale',level:17,stype:'Active'},{name:'Meteorite',level:15,stype:'Active'},{name:'',level:1,stype:'Active'},{name:'',level:1,stype:'Active'}]},
+  skills:   {damage:1.28e6, hp:10.2e6, slots:[{name:'Bomb',level:15,stype:'Active',damage:353e3,hp:2.82e6},{name:'Morale',level:17,stype:'Active',damage:360e3,hp:2.88e6},{name:'Meteorite',level:15,stype:'Active',damage:353e3,hp:2.82e6}]},
 };
 
 let state={}, selId=null, db=null, _saveTimer=null;
@@ -280,7 +280,7 @@ function queueSave(){clearTimeout(_saveTimer);_saveTimer=setTimeout(()=>{if(db)s
 
 function defData(id){
   const e=ENTS.find(e=>e.id===id);
-  if(e.type==='skills') return {slots:Array(5).fill(0).map(()=>({name:'',level:1,stype:'Active'})),damage:0,hp:0};
+  if(e.type==='skills') return {slots:Array(3).fill(0).map(()=>({name:'',level:1,stype:'Active',damage:0,hp:0})),damage:0,hp:0};
   if(e.type==='techtree') return {nodes:{}};
   const d={name:'',imageUrl:'',level:1,rarity:'',damage:0,hp:0,status:e.type==='parked'?'parked':'equipped',activeSlots:[SS[0].k,SS[1].k],substats:{}};
   SS.forEach(s=>d.substats[s.k]=0);
@@ -320,10 +320,13 @@ function backfillSeed(){
     if(!s||!state[e.id]) return;
     if(s.damage&&!state[e.id].damage) state[e.id].damage=s.damage;
     if(s.hp&&!state[e.id].hp) state[e.id].hp=s.hp;
-    if(e.type==='skills'&&s.slots){
-      const cur=state[e.id].slots||[];
-      const empty=cur.every(sl=>!sl.name||!sl.name.trim());
-      if(empty) state[e.id].slots=s.slots;
+    if(e.type==='skills'){
+      if(state[e.id].slots&&state[e.id].slots.length>3) state[e.id].slots=state[e.id].slots.slice(0,3);
+      if(s.slots){
+        const cur=state[e.id].slots||[];
+        const empty=cur.every(sl=>!sl.name||!sl.name.trim());
+        if(empty) state[e.id].slots=s.slots;
+      }
     }
   });
 }
@@ -425,10 +428,14 @@ function cardBody(e,d,isSel){
 
   if(e.type==='skills'){
     const slots=d.slots||[],filled=slots.filter(s=>s.name&&s.name.trim()).length;
-    const names=slots.filter(s=>s.name&&s.name.trim()).slice(0,3).map(s=>`<div style="font-size:10px;color:var(--text-secondary);padding:1px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${s.name} <span style="font-weight:500;color:var(--text-primary);">Lv${s.level}</span></div>`).join('');
+    const names=slots.filter(s=>s.name&&s.name.trim()).map(s=>{
+      const sd=parseFloat(s.damage)||0,sh=parseFloat(s.hp)||0;
+      const stats=(sd||sh)?` <span style="font-size:8px;color:var(--text-muted);">${sd?'⚔'+fmtBig(sd):''}${sd&&sh?' ':''}${sh?'♥'+fmtBig(sh):''}</span>`:'';
+      return `<div style="font-size:10px;color:var(--text-secondary);padding:1px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${s.name} <span style="font-weight:500;color:var(--text-primary);">Lv${s.level}</span>${stats}</div>`;
+    }).join('');
     const dmgV=parseFloat(d.damage)||0,hpV=parseFloat(d.hp)||0;
     const statsRow=(dmgV||hpV)?`<div style="display:flex;gap:8px;font-size:10px;color:var(--text-secondary);padding:1px 0;margin-bottom:2px;">${dmgV?`<span>⚔ <span style="font-weight:500;color:var(--text-primary);">${fmtBig(dmgV)}</span></span>`:''} ${hpV?`<span>♥ <span style="font-weight:500;color:var(--text-primary);">${fmtBig(hpV)}</span></span>`:''}</div>`:'';
-    return `<div style="padding:3px 9px 8px;">${statsRow}<div style="font-size:10px;color:var(--text-muted);margin-bottom:2px;">${filled}/5 configured</div>${names||'<div style="font-size:10px;color:var(--text-muted);font-style:italic;">tap to edit</div>'}</div>`;
+    return `<div style="padding:3px 9px 8px;">${statsRow}<div style="font-size:10px;color:var(--text-muted);margin-bottom:2px;">${filled}/3 configured</div>${names||'<div style="font-size:10px;color:var(--text-muted);font-style:italic;">tap to edit</div>'}</div>`;
   }
   if(e.type==='techtree'){
     const nodes=d.nodes||{},unlocked=TN.filter(n=>nodes[n.id]).length;
@@ -467,8 +474,9 @@ function makeInlineEditor(e,d){
   let content = '';
   const isMount=e.type==='mount', isPet=e.type==='pet', isParked=e.type==='parked';
   if(e.type==='skills'){
-    const slots=d.slots||Array(5).fill(0).map(()=>({name:'',level:1,stype:'Active'}));
-    content=`<div style="margin-top:4px;display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:6px;">
+    const slots=d.slots||Array(3).fill(0).map(()=>({name:'',level:1,stype:'Active',damage:0,hp:0}));
+    content=`
+      <div style="margin-top:4px;display:grid;grid-template-columns:1fr 1fr;gap:4px;">
         <div style="display:flex;align-items:center;gap:3px;">
           <span style="font-size:10px;color:var(--text-muted);">⚔</span>
           <input type="number" step="1" min="0" placeholder="DMG" value="${d.damage||0}" oninput="updField('skills','damage',+this.value)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;text-align:right;">
@@ -478,10 +486,22 @@ function makeInlineEditor(e,d){
           <input type="number" step="1" min="0" placeholder="HP" value="${d.hp||0}" oninput="updField('skills','hp',+this.value)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;text-align:right;">
         </div>
       </div>
-      <div style="font-size:10px;font-weight:500;color:var(--text-secondary);margin:4px 0 2px;">Slots</div>`
-      +slots.map((sk,i)=>`<div style="display:grid;grid-template-columns:1fr 34px;gap:4px;margin:3px 0;align-items:center;">
-        <input type="text" placeholder="Skill ${i+1}" value="${sk.name||''}" onchange="updSkill(${i},'name',this.value)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;">
-        <input type="number" value="${sk.level||1}" min="1" max="99" onchange="updSkill(${i},'level',+this.value)" style="font-size:10px;padding:2px 2px;text-align:center;">
+      <div style="font-size:10px;font-weight:500;color:var(--text-secondary);margin:6px 0 2px;">Equipped Skills</div>`
+      +slots.map((sk,i)=>`<div style="margin:3px 0;">
+        <div style="display:grid;grid-template-columns:1fr 42px;gap:4px;">
+          <input type="text" placeholder="Skill ${i+1}" value="${sk.name||''}" onchange="updSkill(${i},'name',this.value)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;">
+          <input type="number" value="${sk.level||1}" min="1" max="99" onchange="updSkill(${i},'level',+this.value)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;text-align:center;">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:2px;">
+          <div style="display:flex;align-items:center;gap:3px;">
+            <span style="font-size:10px;color:var(--text-muted);">⚔</span>
+            <input type="number" step="1" min="0" placeholder="DMG" value="${sk.damage||0}" oninput="updSkill(${i},'damage',+this.value)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;text-align:right;">
+          </div>
+          <div style="display:flex;align-items:center;gap:3px;">
+            <span style="font-size:10px;color:var(--text-muted);">♥</span>
+            <input type="number" step="1" min="0" placeholder="HP" value="${sk.hp||0}" oninput="updSkill(${i},'hp',+this.value)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;text-align:right;">
+          </div>
+        </div>
       </div>`).join('');
   } else if(e.type==='techtree'){
     const nodes=d.nodes||{};
@@ -531,22 +551,27 @@ function makeInlineEditor(e,d){
 
   const curStatus=(d.status||'equipped');
   const showStatus=isMount||isPet||isParked;
-  let equipDisabled=false;
+  let equipDisabled=false, equipLabel='Equipped';
   if((isPet||isParked)&&curStatus!=='equipped'){
     const eqCount=ENTS.filter(x=>(x.type==='pet'||x.type==='parked')&&(state[x.id]?.status||'equipped')==='equipped').length;
     equipDisabled=eqCount>=3;
+    if(equipDisabled) equipLabel='Full (3/3)';
+  }
+  if(isMount&&curStatus!=='equipped'){
+    const mountEq=ENTS.filter(x=>x.type==='mount'&&(state[x.id]?.status||'equipped')==='equipped').length;
+    equipDisabled=mountEq>=1;
+    if(equipDisabled) equipLabel='Full (1/1)';
   }
   const statusBtns=showStatus?`
     <div style="display:flex;gap:4px;margin-top:4px;">
-      <button onclick="updField('${e.id}','status','equipped')" ${equipDisabled?'disabled':''} style="font-size:9px;padding:2px 6px;flex:1;${curStatus==='equipped'?'background:#2ACC97;color:#fff;border-color:#2ACC97;font-weight:600;':equipDisabled?'opacity:0.3;cursor:not-allowed;':'opacity:0.55;'}">${equipDisabled?'Full (3/3)':'Equipped'}</button>
+      <button onclick="updField('${e.id}','status','equipped')" ${equipDisabled?'disabled':''} style="font-size:9px;padding:2px 6px;flex:1;${curStatus==='equipped'?'background:#2ACC97;color:#fff;border-color:#2ACC97;font-weight:600;':equipDisabled?'opacity:0.3;cursor:not-allowed;':'opacity:0.55;'}">${equipLabel}</button>
       <button onclick="updField('${e.id}','status','parked')" style="font-size:9px;padding:2px 6px;flex:1;${curStatus==='parked'?'background:#666;color:#fff;border-color:#666;font-weight:600;':'opacity:0.55;'}">Parked</button>
     </div>`:'';
   return `<div style="padding:2px 9px 8px;" onclick="event.stopPropagation();">
     ${content}
     ${statusBtns}
-    <div style="display:flex;gap:4px;margin-top:6px;justify-content:space-between;">
+    <div style="display:flex;gap:4px;margin-top:6px;">
       <button onclick="deleteEnt('${e.id}')" style="font-size:9px;padding:2px 8px;background:#5c1a1a !important;color:#f87171 !important;border-color:#7f1d1d !important;">Delete</button>
-      <button onclick="dupEnt('${e.id}')" style="font-size:9px;padding:2px 6px;" title="Duplicate"><i class="ti ti-copy" aria-hidden="true"></i></button>
     </div>
   </div>`;
 }
@@ -561,8 +586,8 @@ function renderCards(){
     const isParked=(d.status||'equipped')==='parked';
     const statusFooter=isStatEnt&&!isSel
       ?(isParked
-        ?`<div style="position:absolute;bottom:0;left:0;right:0;height:10px;background:#1e1e1e;display:flex;align-items:center;justify-content:center;"><span style="font-size:7px;letter-spacing:1px;font-weight:600;color:#666;">PARKED</span></div>`
-        :`<div style="position:absolute;bottom:0;left:0;right:0;height:10px;background:#2ACC97;display:flex;align-items:center;justify-content:center;"><span style="font-size:7px;letter-spacing:1px;font-weight:600;color:#0f2a1a;">EQUIPPED</span></div>`)
+        ?`<div onclick="event.stopPropagation();toggleStatus('${e.id}')" style="position:absolute;bottom:0;left:0;right:0;height:10px;background:#1e1e1e;display:flex;align-items:center;justify-content:center;cursor:pointer;"><span style="font-size:7px;letter-spacing:1px;font-weight:600;color:#666;">PARKED</span></div>`
+        :`<div onclick="event.stopPropagation();toggleStatus('${e.id}')" style="position:absolute;bottom:0;left:0;right:0;height:10px;background:#2ACC97;display:flex;align-items:center;justify-content:center;cursor:pointer;"><span style="font-size:7px;letter-spacing:1px;font-weight:600;color:#0f2a1a;">EQUIPPED</span></div>`)
       :'';
     let subtitle='';
     if(e.type==='gear'&&d.name) subtitle=e.label+(d.rarity?` · ${d.rarity}`:'')+(d.level?lv:'');
@@ -574,7 +599,7 @@ function renderCards(){
 
     let calcHeight = e.h;
     if(isSel) {
-      if(e.type==='skills') calcHeight = 210;
+      if(e.type==='skills') calcHeight = 280;
       else if(e.type==='techtree') calcHeight = 240;
       else if(e.type==='gear') calcHeight = 218;
       else calcHeight = 254;
@@ -586,11 +611,11 @@ function renderCards(){
       <div style="padding:5px 9px 2px;display:flex;align-items:flex-start;gap:5px;position:relative;">
         ${renderIcon(itemIcon(e,d),tcol)}
         <div style="overflow:hidden;min-width:0;flex:1;">
-          <div style="font-size:11px;font-weight:500;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${title}${!d.name&&e.type==='gear'&&lv?lv:''}</div>
+          <div style="font-size:11px;font-weight:500;color:var(--text-primary);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.2;">${title}${!d.name&&e.type==='gear'&&lv?lv:''}</div>
           ${subtitle?`<div style="font-size:9px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${subtitle}</div>`:''}
         </div>
         ${(()=>{const dv=parseFloat(d.damage)||0,hv=parseFloat(d.hp)||0;return(dv||hv)?`<div style="display:flex;flex-direction:column;align-items:flex-end;font-size:7px;color:var(--text-muted);flex-shrink:0;line-height:1.3;">${dv?`<span>⚔${fmtBig(dv)}</span>`:''}${hv?`<span>♥${fmtBig(hv)}</span>`:''}</div>`:''})()}
-        ${isSel?`<button onclick="closeEdit(event)" style="font-size:11px;padding:0 5px;line-height:17px;border-radius:3px;flex-shrink:0;opacity:0.7;" title="Close">×</button>`:''}
+        ${isSel?`<div style="display:flex;flex-direction:column;gap:2px;flex-shrink:0;"><button onclick="closeEdit(event)" style="font-size:11px;padding:0 5px;line-height:17px;border-radius:3px;opacity:0.7;" title="Close">×</button><button onclick="event.stopPropagation();dupEnt('${e.id}')" style="font-size:9px;padding:0 5px;line-height:17px;border-radius:3px;opacity:0.7;" title="Duplicate"><i class="ti ti-copy" aria-hidden="true"></i></button></div>`:''}
       </div>
       ${cardBody(e,d,isSel)}
       ${statusFooter}
@@ -615,18 +640,15 @@ function renderCards(){
   const CHART_H=52;
   const restVals=restSS.map(s=>parseFloat(t[s.k])||0);
   const globalMax=Math.max(...restVals,1);
-  const vertBars=restSS.map((s,i)=>{
+  const chartArea=restSS.map((s,i)=>{
     const v=restVals[i];
     const pct=Math.min(100,(v/globalMax)*100);
     const barH=Math.max(v>0?2:0,Math.round((pct/100)*CHART_H));
     const abbr=s.l.replace(' Chance','C').replace(' Speed','Spd').replace(' DMG','D').replace(' Regen','Rgn').replace('Ranged','Rng').replace('Melee','Mle').replace('Skill','Skl');
-    return `<div style="display:flex;flex-direction:column;align-items:center;gap:1px;flex:1;min-width:0;">
-      <span style="font-size:7px;font-weight:500;color:var(--text-primary);">${v>0?fmtVal(v):''}</span>
-      <div style="height:${CHART_H}px;display:flex;align-items:flex-end;width:100%;">
-        <div style="width:100%;height:${barH}px;background:#378ADD;border-radius:2px 2px 0 0;transition:height 0.3s;"></div>
-      </div>
-      <div style="height:1px;width:100%;background:var(--border);"></div>
-      <span style="font-size:7px;color:var(--text-muted);text-align:center;line-height:1.1;">${abbr}</span>
+    return `<div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:0;">
+      <span style="font-size:7px;font-weight:500;color:var(--text-primary);height:10px;">${v>0?fmtVal(v):''}</span>
+      <div style="height:${CHART_H}px;display:flex;align-items:flex-end;width:100%;"><div style="width:100%;height:${barH}px;background:#378ADD;border-radius:2px 2px 0 0;transition:height 0.3s;"></div></div>
+      <span style="font-size:7px;color:var(--text-muted);text-align:center;line-height:1.1;margin-top:2px;">${abbr}</span>
     </div>`;
   }).join('');
   const sumPos=state.positions&&state.positions["summary"]?state.positions["summary"]:{x:SUM.x,y:SUM.y};
@@ -643,7 +665,9 @@ function renderCards(){
       </div>
     </div>
     <div style="padding:0 12px 4px;">${mainRows}</div>
-    <div style="padding:4px 8px 8px;display:flex;gap:3px;align-items:flex-end;">${vertBars}</div>
+    <div style="padding:4px 8px 8px;">
+      <div style="display:flex;gap:3px;">${chartArea}</div>
+    </div>
   </div>`;
   document.getElementById('cards').innerHTML=h;
 }
@@ -660,7 +684,7 @@ function renderSummaryRows(){
       <span style="font-size:12px;color:var(--text-secondary);">${s.l}</span>
       <div style="height:4px;background:var(--surface-0);border-radius:2px;overflow:hidden;"><div style="width:${pct}%;height:100%;background:${bc};border-radius:2px;transition:width 0.3s;"></div></div>
       <span style="font-size:12px;font-weight:500;color:${met?'#2ACC97':'var(--text-primary)'};text-align:right;">${v}%${met?' ✓':''}</span>
-      ${s.tgt?`<span style="font-size:10px;color:var(--text-muted);">${s.tl}</span>`:''}
+      ${s.tgt?`<span style="font-size:10px;color:var(--text-muted);text-align:right;">${s.tl}</span>`:''}
     </div>`;
   });
   document.getElementById('summary-rows').innerHTML=h;
@@ -697,6 +721,22 @@ function updStatVal(id,key,val){
   queueSave();
 }
 
+function toggleStatus(id){
+  const cur=(state[id]?.status||'equipped');
+  const next=cur==='equipped'?'parked':'equipped';
+  const ent=ENTS.find(e=>e.id===id);
+  if(next==='equipped'){
+    if(ent?.type==='mount'){
+      const mountEq=ENTS.filter(e=>e.type==='mount'&&e.id!==id&&(state[e.id]?.status||'equipped')==='equipped').length;
+      if(mountEq>=1) return;
+    } else if(ent?.type==='pet'||ent?.type==='parked'){
+      const eqCount=ENTS.filter(e=>(e.type==='pet'||e.type==='parked')&&e.id!==id&&(state[e.id]?.status||'equipped')==='equipped').length;
+      if(eqCount>=3) return;
+    }
+  }
+  updField(id,'status',next);
+}
+
 function updField(id,f,v){
   state[id][f]=v;
   if(f==='status'&&v==='equipped'){
@@ -717,7 +757,7 @@ function updField(id,f,v){
 }
 
 function updSkill(i,f,v){
-  if(!state.skills.slots) state.skills.slots=Array(5).fill(0).map(()=>({name:'',level:1,stype:'Active'}));
+  if(!state.skills.slots) state.skills.slots=Array(3).fill(0).map(()=>({name:'',level:1,stype:'Active',damage:0,hp:0}));
   state.skills.slots[i][f]=v;
   renderCards();queueSave();
 }
@@ -880,7 +920,7 @@ function autoLayout(){
   const canvas=document.getElementById('canvas');
   if(!canvas)return;
   const cW=canvas.clientWidth, cH=canvas.clientHeight;
-  const cw=145, ch=88, gap=8, pad=10, row=ch+gap;
+  const cw=145, ch=100, gap=8, pad=10, row=ch+gap;
   if(!state.positions)state.positions={};
   const p=state.positions;
 
@@ -953,7 +993,7 @@ function clampPositions(){
 function snapToGrid(){
   const canvas=document.getElementById('canvas');
   if(!canvas)return;
-  const cw=145,ch=88,gap=8,pad=10,cellW=cw+gap,cellH=ch+gap;
+  const cw=145,ch=100,gap=8,pad=10,cellW=cw+gap,cellH=ch+gap;
   const cW=canvas.clientWidth,cH=canvas.clientHeight;
   const maxCols=Math.max(1,Math.floor((cW-pad*2)/cellW));
   const maxRows=Math.max(1,Math.floor((cH-pad*2)/cellH));
@@ -1063,6 +1103,34 @@ function resetLayout(){
 
 let _resizeTimer;
 window.addEventListener('resize',()=>{clearTimeout(_resizeTimer);_resizeTimer=setTimeout(()=>{clampPositions();renderCards();drawLines();},150);});
+
+let _zoom=1,_panX=0,_panY=0,_panning=false,_panStartX=0,_panStartY=0,_panOrigX=0,_panOrigY=0;
+function applyZoomPan(){
+  document.getElementById('canvas').style.transform=`translate(${_panX}px,${_panY}px) scale(${_zoom})`;
+}
+const _wrap=document.getElementById('canvas-wrap');
+_wrap.addEventListener('wheel',function(e){
+  e.preventDefault();
+  const delta=e.deltaY>0?-0.05:0.05;
+  _zoom=Math.min(2,Math.max(0.3,_zoom+delta));
+  if(_zoom===1){_panX=0;_panY=0;}
+  applyZoomPan();
+},{passive:false});
+_wrap.addEventListener('mousedown',function(e){
+  if(e.target.closest('.ecard')||e.button!==0) return;
+  _panning=true;_panStartX=e.clientX;_panStartY=e.clientY;_panOrigX=_panX;_panOrigY=_panY;
+  _wrap.style.cursor='grabbing';
+  e.preventDefault();
+});
+window.addEventListener('mousemove',function(e){
+  if(!_panning) return;
+  _panX=_panOrigX+(e.clientX-_panStartX);
+  _panY=_panOrigY+(e.clientY-_panStartY);
+  applyZoomPan();
+});
+window.addEventListener('mouseup',function(){
+  if(_panning){_panning=false;_wrap.style.cursor='';}
+});
 
 async function init(){
   initState();await loadDB();backfillSeed();
