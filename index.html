@@ -89,7 +89,8 @@ input[type="checkbox"] {
   height: auto !important;
   overflow: visible;
 }
-.etop { height: 10px; width: 100%; }
+.etop { height: 14px; width: 100%; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.etop span { font-size: 7px; font-weight: 900; letter-spacing: 0.5px; color: rgba(0,0,0,0.7); text-shadow: 0 1px 0 rgba(255,255,255,0.15); }
 .tcheck { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-secondary); margin: 3px 0; cursor: pointer; }
 .ss-row { display: grid; grid-template-columns: 1fr 58px 12px; gap: 4px; align-items: center; margin: 4px 0; }
 </style>
@@ -110,7 +111,7 @@ input[type="checkbox"] {
     <button onclick="openNewCardModal()" style="font-size:11px;padding:4px 10px;" title="Add new card"><i class="ti ti-plus" aria-hidden="true"></i> New Card</button>
     <button onclick="saveRefLayout()" style="font-size:11px;padding:4px 8px;opacity:0.7;" title="Save current layout as home"><i class="ti ti-pin" aria-hidden="true"></i> Set Home</button>
 
-    <button onclick="layoutCleanup()" style="font-size:11px;padding:4px 8px;opacity:0.7;" title="Restore saved home layout then snap to grid (auto-arranges on first use before any home is set)"><i class="ti ti-broom" aria-hidden="true"></i> Layout Clean-up</button>
+    <button onclick="layoutCleanup()" style="font-size:11px;padding:4px 8px;opacity:0.7;" title="Snap current card positions to grid without moving them out of place"><i class="ti ti-broom" aria-hidden="true"></i> Layout Clean-up</button>
     <button onclick="exportJSON()" style="font-size:11px;padding:4px 8px;" title="Download build as JSON"><i class="ti ti-download" aria-hidden="true"></i></button>
     <button onclick="document.getElementById('import-file').click()" style="font-size:11px;padding:4px 8px;" title="Import build from JSON"><i class="ti ti-upload" aria-hidden="true"></i></button>
     <input type="file" id="import-file" accept=".json" style="display:none;" onchange="importJSON(event)">
@@ -118,8 +119,8 @@ input[type="checkbox"] {
   </div>
 </div>
 
-<div id="canvas-wrap" style="flex:1;min-height:0;overflow:visible;">
-<div id="canvas" style="position:relative;width:100%;height:100%;background:var(--surface-1);border:2px solid #DCA63B;border-radius:12px;overflow:visible;transform-origin:0 0;">
+<div id="canvas-wrap" style="flex:1;min-height:0;overflow:hidden;">
+<div id="canvas" style="position:relative;width:1800px;height:1000px;background:var(--surface-1);border:2px solid #DCA63B;border-radius:12px;overflow:visible;transform-origin:0 0;">
   <svg id="svg-lines" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></svg>
   <div id="cards"></div>
 </div>
@@ -160,10 +161,21 @@ const SS=[
 SS[0].tgt=100; SS[0].tl='target 100%';
 
 const TN=[
-  {id:'w1',l:'Weapon I',   g:'Weapon'},{id:'w2',l:'Weapon II',  g:'Weapon'},{id:'w3',l:'Weapon III', g:'Weapon'},
-  {id:'g1',l:'Gloves I',   g:'Gloves'},{id:'g2',l:'Gloves II',  g:'Gloves'},{id:'g3',l:'Gloves III', g:'Gloves'},
-  {id:'hm',l:'Helmet mastery',g:'Helmet/Body'},{id:'bm',l:'Body mastery',g:'Helmet/Body'},
+  {id:'w1',l:'Weapon I',   g:'Weapon',      stat:'damage', pct:2},
+  {id:'w2',l:'Weapon II',  g:'Weapon',      stat:'damage', pct:2},
+  {id:'w3',l:'Weapon III', g:'Weapon',      stat:'damage', pct:2},
+  {id:'g1',l:'Gloves I',   g:'Gloves',      stat:'damage', pct:2},
+  {id:'g2',l:'Gloves II',  g:'Gloves',      stat:'damage', pct:2},
+  {id:'g3',l:'Gloves III', g:'Gloves',      stat:'damage', pct:2},
+  {id:'hm',l:'Helmet mastery',g:'Helmet/Body', stat:'hp',   pct:2},
+  {id:'bm',l:'Body mastery',  g:'Helmet/Body', stat:'hp',   pct:2},
 ];
+// Sum of Tech Tree mastery node percentages, split by which stat they boost (per Forge Master wiki: +2% per point)
+function techMasteryPct(nodes){
+  const p={damage:0,hp:0};
+  TN.forEach(n=>{if(nodes&&nodes[n.id])p[n.stat]+=n.pct;});
+  return p;
+}
 
 const SK_TYPES=['Active','Passive','Ultimate'];
 const GEAR_RARITIES=['','Space','Interstellar','Multiverse'];
@@ -313,6 +325,7 @@ function initState(){
     else if(s.slots) state[e.id].activeSlots=s.slots;
   });
   state.refPositions=JSON.parse(JSON.stringify(DEFAULT_REF_POSITIONS));
+  state.charBonus={damagePct:0,hpPct:0};
 }
 function backfillSeed(){
   ENTS.forEach(e=>{
@@ -344,6 +357,19 @@ async function loadDB(){
   try{
     db=await openDB();
     const tx=db.transaction('items','readonly'),st=tx.objectStore('items');
+    // load deleted built-in slot ids first so they stay removed after reload
+    await new Promise(res=>{
+      const r=st.get('_deletedIds');
+      r.onsuccess=()=>{
+        if(r.result?.data){
+          state.deletedIds=r.result.data;
+          const delSet=new Set(state.deletedIds);
+          ENTS=ENTS.filter(e=>!delSet.has(e.id));
+        }
+        res();
+      };
+      r.onerror=()=>res();
+    });
     // load dynamic ent definitions first so their state loads correctly
     await new Promise(res=>{
       const r=st.get('_dynEnts');
@@ -372,6 +398,10 @@ async function loadDB(){
       const r=st.get('_refPositions');
       r.onsuccess=()=>{if(r.result)state.refPositions=r.result.data;res();};
       r.onerror=()=>res();
+    }),new Promise(res=>{
+      const r=st.get('_charBonus');
+      r.onsuccess=()=>{if(r.result)state.charBonus=r.result.data;res();};
+      r.onerror=()=>res();
     })]);
   }catch(err){db=null;}
 }
@@ -383,6 +413,8 @@ async function saveAll(){
   st.put({id:'_positions',data:state.positions||{}});
   if(state.refPositions) st.put({id:'_refPositions',data:state.refPositions});
   st.put({id:'_dynEnts',data:ENTS.filter(e=>e._dynamic)});
+  st.put({id:'_deletedIds',data:state.deletedIds||[]});
+  st.put({id:'_charBonus',data:state.charBonus||{damagePct:0,hpPct:0}});
   await new Promise(res=>{tx.oncomplete=res;tx.onerror=res;});
   btn.innerHTML='<i class="ti ti-check" aria-hidden="true"></i> Saved';
   setTimeout(()=>{btn.innerHTML='<i class="ti ti-device-floppy" aria-hidden="true"></i> Save';},1500);
@@ -399,6 +431,17 @@ function fmtBig(v){
   if(v>=1e6) return t2(v/1e6)+'m';
   if(v>=1e3) return t2(v/1e3)+'k';
   return t2(v);
+}
+const BIG_SUFFIX={k:1e3,m:1e6,b:1e9,t:1e12};
+function parseBig(str){
+  if(str===undefined||str===null) return 0;
+  const s=String(str).trim().toLowerCase();
+  if(!s) return 0;
+  const m=s.match(/^(-?[\d.]+)\s*([kmbt])?$/);
+  if(!m) return isNaN(parseFloat(s))?0:parseFloat(s);
+  const num=parseFloat(m[1]);
+  if(isNaN(num)) return 0;
+  return m[2]?num*BIG_SUFFIX[m[2]]:num;
 }
 
 function entPos(e){
@@ -425,6 +468,11 @@ function totals(){
     t.damage+=(parseFloat(d.damage)||0);
     t.hp+=(parseFloat(d.hp)||0);
   });
+  // Apply Tech Tree mastery % (unlocked nodes) and manual level/ascension bonus % on top of the flat item totals
+  const techPct=techMasteryPct(state.techtree&&state.techtree.nodes);
+  const lvlBonus=state.charBonus||{damagePct:0,hpPct:0};
+  t.damage=t.damage*(1+(techPct.damage+(parseFloat(lvlBonus.damagePct)||0))/100);
+  t.hp=t.hp*(1+(techPct.hp+(parseFloat(lvlBonus.hpPct)||0))/100);
   return t;
 }
 
@@ -472,7 +520,7 @@ function cardBody(e,d,isSel){
 }
 
 function ssOptions(selectedKey){
-  return SS.map(s=>`<option value="${s.k}"${s.k===selectedKey?' selected':''}>${s.l} (max ${s.max}%)</option>`).join('');
+  return [...SS].sort((a,b)=>a.l.localeCompare(b.l)).map(s=>`<option value="${s.k}"${s.k===selectedKey?' selected':''}>${s.l} (max ${s.max}%)</option>`).join('');
 }
 
 function makeInlineEditor(e,d){
@@ -484,11 +532,11 @@ function makeInlineEditor(e,d){
       <div style="margin-top:4px;display:grid;grid-template-columns:1fr 1fr;gap:4px;">
         <div style="display:flex;align-items:center;gap:3px;">
           <span style="font-size:10px;color:var(--text-muted);">⚔</span>
-          <input id="ef-skills-damage" type="number" step="1" min="0" placeholder="DMG" value="${d.damage||0}" oninput="updField('skills','damage',+this.value)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;text-align:right;">
+          <input id="ef-skills-damage" type="text" placeholder="DMG (e.g. 13.5m)" value="${d.damage?fmtBig(d.damage):''}" onchange="updField('skills','damage',parseBig(this.value))" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;text-align:right;">
         </div>
         <div style="display:flex;align-items:center;gap:3px;">
           <span style="font-size:10px;color:var(--text-muted);">♥</span>
-          <input id="ef-skills-hp" type="number" step="1" min="0" placeholder="HP" value="${d.hp||0}" oninput="updField('skills','hp',+this.value)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;text-align:right;">
+          <input id="ef-skills-hp" type="text" placeholder="HP (e.g. 7b)" value="${d.hp?fmtBig(d.hp):''}" onchange="updField('skills','hp',parseBig(this.value))" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;text-align:right;">
         </div>
       </div>
       <div style="font-size:10px;font-weight:500;color:var(--text-secondary);margin:6px 0 2px;">Equipped Skills</div>`
@@ -500,18 +548,31 @@ function makeInlineEditor(e,d){
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:2px;">
           <div style="display:flex;align-items:center;gap:3px;">
             <span style="font-size:10px;color:var(--text-muted);">⚔</span>
-            <input id="ef-skill-${i}-damage" type="number" step="1" min="0" placeholder="DMG" value="${sk.damage||0}" oninput="updSkill(${i},'damage',+this.value)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;text-align:right;">
+            <input id="ef-skill-${i}-damage" type="text" placeholder="DMG" value="${sk.damage?fmtBig(sk.damage):''}" onchange="updSkill(${i},'damage',parseBig(this.value))" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;text-align:right;">
           </div>
           <div style="display:flex;align-items:center;gap:3px;">
             <span style="font-size:10px;color:var(--text-muted);">♥</span>
-            <input id="ef-skill-${i}-hp" type="number" step="1" min="0" placeholder="HP" value="${sk.hp||0}" oninput="updSkill(${i},'hp',+this.value)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;text-align:right;">
+            <input id="ef-skill-${i}-hp" type="text" placeholder="HP" value="${sk.hp?fmtBig(sk.hp):''}" onchange="updSkill(${i},'hp',parseBig(this.value))" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;text-align:right;">
           </div>
         </div>
       </div>`).join('');
   } else if(e.type==='techtree'){
     const nodes=d.nodes||{};
+    const cb=state.charBonus||{damagePct:0,hpPct:0};
     content=`<div style="font-size:9px;color:var(--text-muted);margin:4px 0 6px;">Skip Skill DMG nodes</div>`;
-    content+=TN.map(n=>`<label class="tcheck" style="gap:4px;font-size:10px;margin:2px 0;"><input type="checkbox" ${nodes[n.id]?'checked':''} onchange="updTechNode('${n.id}',this.checked)" style="margin:0;transform:scale(0.85);"><span>${n.l}</span></label>`).join('');
+    content+=TN.map(n=>`<label class="tcheck" style="gap:4px;font-size:10px;margin:2px 0;"><input type="checkbox" ${nodes[n.id]?'checked':''} onchange="updTechNode('${n.id}',this.checked)" style="margin:0;transform:scale(0.85);"><span>${n.l} (+${n.pct}% ${n.stat==='damage'?'DMG':'HP'})</span></label>`).join('');
+    content+=`<div style="font-size:10px;font-weight:500;color:var(--text-secondary);margin:8px 0 2px;">Level / Ascension Bonus</div>
+      <div style="font-size:9px;color:var(--text-muted);margin-bottom:4px;">Manual % from Forge Level + Ascension stars (not derivable from checkboxes)</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;">
+        <div style="display:flex;align-items:center;gap:3px;">
+          <span style="font-size:10px;color:var(--text-muted);">⚔</span>
+          <input type="number" step="0.1" min="0" placeholder="DMG %" value="${cb.damagePct||0}" onchange="updCharBonus('damagePct',+this.value)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;text-align:right;">
+        </div>
+        <div style="display:flex;align-items:center;gap:3px;">
+          <span style="font-size:10px;color:var(--text-muted);">♥</span>
+          <input type="number" step="0.1" min="0" placeholder="HP %" value="${cb.hpPct||0}" onchange="updCharBonus('hpPct',+this.value)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;text-align:right;">
+        </div>
+      </div>`;
   } else {
     const rarList=e.type==='gear'?GEAR_RARITIES:PARKED_RARITIES;
     const active=d.activeSlots||[SS[0].k,SS[1].k];
@@ -542,11 +603,11 @@ function makeInlineEditor(e,d){
       <div style="margin-top:4px;display:grid;grid-template-columns:1fr 1fr;gap:4px;">
         <div style="display:flex;align-items:center;gap:3px;">
           <span style="font-size:10px;color:var(--text-muted);">⚔</span>
-          <input id="ef-${e.id}-damage" type="number" step="1" min="0" placeholder="DMG" value="${d.damage||0}" oninput="updField('${e.id}','damage',+this.value)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;text-align:right;">
+          <input id="ef-${e.id}-damage" type="text" placeholder="DMG (e.g. 13.5m)" value="${d.damage?fmtBig(d.damage):''}" onchange="updField('${e.id}','damage',parseBig(this.value))" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;text-align:right;">
         </div>
         <div style="display:flex;align-items:center;gap:3px;">
           <span style="font-size:10px;color:var(--text-muted);">♥</span>
-          <input id="ef-${e.id}-hp" type="number" step="1" min="0" placeholder="HP" value="${d.hp||0}" oninput="updField('${e.id}','hp',+this.value)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;text-align:right;">
+          <input id="ef-${e.id}-hp" type="text" placeholder="HP (e.g. 7b)" value="${d.hp?fmtBig(d.hp):''}" onchange="updField('${e.id}','hp',parseBig(this.value))" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;text-align:right;">
         </div>
       </div>
       <div style="font-size:10px;font-weight:500;color:var(--text-secondary);margin:6px 0 2px;">Substats</div>
@@ -597,9 +658,9 @@ function renderCards(){
         :`<div onclick="event.stopPropagation();toggleStatus('${e.id}')" style="position:absolute;bottom:0;left:0;right:0;height:10px;background:#2ACC97;display:flex;align-items:center;justify-content:center;cursor:pointer;"><span style="font-size:7px;letter-spacing:1px;font-weight:600;color:#0f2a1a;">EQUIPPED</span></div>`)
       :'';
     let subtitle='';
-    if(e.type==='gear'&&d.name) subtitle=e.label+(d.rarity?` · ${d.rarity}`:'')+(d.level?lv:'');
-    else if(e.type==='gear') subtitle=(d.rarity||'')+(d.level?lv:'');
-    else if((e.type==='mount'||e.type==='pet'||e.type==='parked')&&(d.rarity||d.level)) subtitle=`${d.rarity||''}${lv}`;
+    if(e.type==='gear'&&d.name) subtitle=(d.level?lv.trim():'')+` · ${e.label}`;
+    else if(e.type==='gear') subtitle=d.level?lv.trim():'';
+    else if((e.type==='mount'||e.type==='pet'||e.type==='parked')&&d.level) subtitle=lv.trim();
     const tcol=d.rarity&&RARITY_COL[d.rarity]?RARITY_COL[d.rarity]:col;
     
     const opacityStyle = (isParked && !isSel) ? 'opacity: 0.65;' : '';
@@ -614,7 +675,7 @@ function renderCards(){
 
     const pos=state.positions&&state.positions[e.id]?state.positions[e.id]:{x:e.x,y:e.y};
     h+=`<div class="ecard ${e.type}${isSel?' sel':''}" data-eid="${e.id}" style="left:${pos.x}px;top:${pos.y}px;width:${e.w}px;height:${calcHeight}px;--theme-color:${tcol};${opacityStyle};cursor:pointer;" onmousedown="startDrag(event,'${e.id}')" onclick="cardClick(event,'${e.id}')">
-      <div class="etop" style="background:${tcol};"></div>
+      <div class="etop" style="background:${tcol};">${d.rarity?`<span>${d.rarity}</span>`:''}</div>
       <div style="padding:5px 9px 2px;display:flex;align-items:flex-start;gap:5px;position:relative;">
         ${renderIcon(itemIcon(e,d),tcol)}
         <div style="overflow:hidden;min-width:0;flex:1;">
@@ -718,8 +779,6 @@ function closeEdit(e){
 
 function updSlot(id,slotIdx,newKey){
   const d=state[id];
-  const oldKey=d.activeSlots[slotIdx];
-  d.substats[oldKey]=0;
   d.activeSlots[slotIdx]=newKey;
   renderCards();queueSave();
 }
@@ -745,8 +804,16 @@ function toggleStatus(id){
   updField(id,'status',next);
 }
 
+const BASE_STATS_L1={'kitsune':{damage:13.5e6,hp:36e6},'serpent':{damage:13.5e6,hp:36e6}};
 function updField(id,f,v){
   state[id][f]=v;
+  if(f==='name'){
+    const ent=ENTS.find(e=>e.id===id);
+    if(ent&&(ent.type==='pet'||ent.type==='parked')&&!state[id].damage&&!state[id].hp){
+      const base=BASE_STATS_L1[(v||'').trim().toLowerCase()];
+      if(base){state[id].damage=base.damage;state[id].hp=base.hp;}
+    }
+  }
   if(f==='status'&&v==='equipped'){
     const ent=ENTS.find(e=>e.id===id);
     if(ent?.type==='mount'){
@@ -773,7 +840,13 @@ function updSkill(i,f,v){
 function updTechNode(nid,checked){
   if(!state.techtree.nodes) state.techtree.nodes={};
   state.techtree.nodes[nid]=checked;
-  queueSave();
+  renderCards();queueSave();
+}
+
+function updCharBonus(f,v){
+  if(!state.charBonus) state.charBonus={damagePct:0,hpPct:0};
+  state.charBonus[f]=isNaN(v)?0:v;
+  renderCards();queueSave();
 }
 
 function clearEnt(id){
@@ -814,9 +887,11 @@ function dupEnt(srcId){
   if(!srcEnt) return;
   const newId=srcEnt.type+'_'+Date.now();
   const srcPos=(state.positions&&state.positions[srcId])||{x:srcEnt.x,y:srcEnt.y};
+  const canvas=document.getElementById('canvas');
+  const cW=canvas?canvas.clientWidth:1800;
   // place to the right; if it would overflow canvas width, place below instead
   let newX=snap(srcPos.x+srcEnt.w+8), newY=snap(srcPos.y);
-  if(newX+srcEnt.w>1140){newX=snap(srcPos.x);newY=snap(srcPos.y+srcEnt.h+8);}
+  if(newX+srcEnt.w>cW-10){newX=snap(srcPos.x);newY=snap(srcPos.y+srcEnt.h+8);}
   const newEnt={id:newId,label:srcEnt.label,type:srcEnt.type,icon:srcEnt.icon,x:newX,y:newY,w:srcEnt.w,h:srcEnt.h,_dynamic:true};
   ENTS.push(newEnt);
   state[newId]=JSON.parse(JSON.stringify(state[srcId]));
@@ -827,14 +902,15 @@ function dupEnt(srcId){
 
 function deleteEnt(id){
   const ent=ENTS.find(e=>e.id===id);
-  if(ent?._dynamic){
-    // remove dynamic card entirely
+  if(ent){
+    // remove the card entirely, whether it's a built-in slot or a dynamically created one
     ENTS=ENTS.filter(e=>e.id!==id);
     delete state[id];
     if(state.positions) delete state.positions[id];
-  } else {
-    // static slot: just clear data
-    state[id]=defData(id);
+    if(!ent._dynamic){
+      if(!state.deletedIds) state.deletedIds=[];
+      if(!state.deletedIds.includes(id)) state.deletedIds.push(id);
+    }
   }
   selId=null;
   renderCards();saveAll();
@@ -1015,25 +1091,12 @@ function snapToGrid(){
     return true;
   }
 
-  const RARITY_RANK={'Mythic':6,'Ultimate':5,'Legendary':4,'Epic':3,'Rare':2,'Uncommon':1,'Common':0,'':-1};
-  const petSlotIds=new Set(ENTS.filter(e=>e.type==='pet').map(e=>e.id));
-  const petParkedIds=new Set(ENTS.filter(e=>e.type==='parked'&&e.id!=='inv1').map(e=>e.id));
-  const isPet=id=>petSlotIds.has(id)||petParkedIds.has(id);
-
-  const petIds=[...petSlotIds,...petParkedIds];
-  petIds.sort((a,b)=>{
-    const da=state[a]||{},db2=state[b]||{};
-    const ae=(da.status||'equipped')==='equipped',be=(db2.status||'equipped')==='equipped';
-    if(ae!==be) return be-ae;
-    return (RARITY_RANK[db2.rarity]??-1)-(RARITY_RANK[da.rarity]??-1);
-  });
-
   const pinned=new Set(['skills','techtree','summary']);
-  const nonPetItems=ENTS.filter(e=>!isPet(e.id)&&!pinned.has(e.id)).map(e=>{
+  const gridItems=ENTS.filter(e=>!pinned.has(e.id)).map(e=>{
     const pos=(state.positions&&state.positions[e.id])||{x:e.x,y:e.y};
     return {id:e.id,x:pos.x,y:pos.y,cols:Math.max(1,Math.round(e.w/cellW))};
   });
-  nonPetItems.sort((a,b)=>{
+  gridItems.sort((a,b)=>{
     const ar=Math.round((a.y-pad)/cellH),br=Math.round((b.y-pad)/cellH);
     if(ar!==br) return ar-br;
     return Math.round((a.x-pad)/cellW)-Math.round((b.x-pad)/cellW);
@@ -1041,7 +1104,7 @@ function snapToGrid(){
 
   const newPos={};
 
-  for(const item of nonPetItems){
+  for(const item of gridItems){
     const targetCol=Math.min(Math.max(0,Math.round((item.x-pad)/cellW)),Math.max(0,maxCols-item.cols));
     const targetRow=Math.min(Math.max(0,Math.round((item.y-pad)/cellH)),maxRows-1);
     let placed=false;
@@ -1061,19 +1124,6 @@ function snapToGrid(){
     }
     if(!placed) newPos[item.id]={x:Math.max(pad,Math.min(item.x,cW-item.cols*cellW-pad)),y:Math.max(pad,Math.min(item.y,cH-ch-pad))};
   }
-
-  const firstPetPos=(state.positions&&state.positions[petIds[0]])||{x:ENTS.find(e=>e.id===petIds[0])?.x||pad,y:ENTS.find(e=>e.id===petIds[0])?.y||pad};
-  const anchorCol=Math.min(Math.max(0,Math.round((firstPetPos.x-pad)/cellW)),Math.max(0,maxCols-3));
-  const anchorRow=Math.max(0,Math.round((firstPetPos.y-pad)/cellH));
-
-  petIds.forEach((id,i)=>{
-    const col=anchorCol+(i%3);
-    const row=anchorRow+Math.floor(i/3);
-    const cx=Math.min(col,maxCols-1);
-    const ry=Math.min(row,maxRows-1);
-    markCols(cx,ry,1);
-    newPos[id]={x:pad+cx*cellW,y:pad+ry*cellH};
-  });
 
   // Snap pinned cards (skills, techtree) to nearest grid cell within bounds
   pinned.forEach(pid=>{
@@ -1097,7 +1147,6 @@ function snapToGrid(){
 }
 
 function layoutCleanup(){
-  resetLayout();
   snapToGrid();
 }
 function saveRefLayout(){
