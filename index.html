@@ -145,10 +145,10 @@ input[type="checkbox"] {
   <div style="background:var(--surface-2);border:1px solid var(--border-strong);border-radius:12px;padding:24px 28px;min-width:320px;box-shadow:0 8px 32px rgba(0,0,0,0.5);" onclick="event.stopPropagation()">
     <div id="new-card-title" style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:16px;">Add new card</div>
     <div id="new-card-type-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:20px;">
-      <button onclick="pickNewCardType('gear')"    style="padding:10px;display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11px;"><i class="ti ti-sword" style="font-size:20px;color:#968DF2;"></i>Gear</button>
-      <button onclick="pickNewCardType('mount')"   style="padding:10px;display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11px;"><i class="ti ti-star" style="font-size:20px;color:#2ACC97;"></i>Mount / Ride</button>
-      <button onclick="pickNewCardType('pet')"     style="padding:10px;display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11px;"><i class="ti ti-heart" style="font-size:20px;color:#E96B3E;"></i>Pet</button>
-      <button onclick="pickNewCardType('skills')"  style="padding:10px;display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11px;"><i class="ti ti-bolt" style="font-size:20px;color:#DCA63B;"></i>Skills</button>
+      <button onclick="pickNewCardType('gear')"    style="padding:10px;display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11px;"><i class="ti ti-settings" style="font-size:20px;color:#968DF2;"></i>Gear</button>
+      <button onclick="pickNewCardType('mount')"   style="padding:10px;display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11px;"><i class="ti ti-motorbike" style="font-size:20px;color:#2ACC97;"></i>Mount</button>
+      <button onclick="pickNewCardType('pet')"     style="padding:10px;display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11px;"><i class="ti ti-paw" style="font-size:20px;color:#E96B3E;"></i>Pet</button>
+      <button onclick="pickNewCardType('skills')"  style="padding:10px;display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11px;"><i class="ti ti-bolt" style="font-size:20px;color:#DCA63B;"></i>Skill</button>
       <button onclick="pickNewCardType('techtree')" style="padding:10px;display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11px;"><i class="ti ti-sitemap" style="font-size:20px;color:#2982D9;"></i>Tech Tree</button>
     </div>
     <div id="new-card-gear-grid" style="display:none;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:20px;"></div>
@@ -241,11 +241,15 @@ const NAME_ICON={
   'electry':'icons/pets/rabbit.png','serpent':'icons/pets/snake.png','cerberus':'icons/pets/dog.png',
   'enchanted elk':'icons/pets/deer.png','kitsune':'icons/pets/fox.png','brown leaf':'icons/pets/leaf.png',
   'plasma rifle':'icons/pets/rifle.png',
-  'lily pad':'icons/pets/lilypad.png','lily leaf':'icons/pets/lily-leaf.png','treant':'icons/pets/treant.png',
+  'lily pad':'icons/mounts/lilypad.png','lily leaf':'icons/mounts/lily-leaf.png','treant':'icons/pets/treant.png',
+};
+const SLOT_ICON={
+  helmet:'icons/gears/head.png',gloves:'icons/gears/hands.png',necklace:'icons/gears/neck.png',
+  ring:'icons/gears/ring.png',weapon:'icons/gears/weapon.png',boots:'icons/gears/feet.png',
 };
 function itemIcon(e,d){
   const n=(d.name||'').toLowerCase();
-  return NAME_ICON[n]||e.icon;
+  return NAME_ICON[n]||SLOT_ICON[e.id]||e.slotIcon||e.icon;
 }
 function renderIcon(iconVal,col){
   if(iconVal.endsWith('.png'))
@@ -255,21 +259,21 @@ function renderIcon(iconVal,col){
 
 let ENTS=[
   // Gear row 1: Head · Armor · Hands · Neck · Ring
-  {id:'helmet',  label:'Head',           type:'gear',     icon:'icons/gears/head.png',       x:10,  y:10,  w:145,h:100},
+  {id:'helmet',  label:'Head',           type:'gear',     icon:'ti-helmet',      x:10,  y:10,  w:145,h:100},
   {id:'body',    label:'Armor',          type:'gear',     icon:'ti-shield',      x:163, y:10,  w:145,h:100},
-  {id:'gloves',  label:'Hands',          type:'gear',     icon:'icons/gears/hands.png', x:316, y:10,  w:145,h:100},
-  {id:'necklace',label:'Neck',           type:'gear',     icon:'ti-link',        x:469, y:10,  w:145,h:100},
+  {id:'gloves',  label:'Hands',          type:'gear',     icon:'ti-hand-stop',   x:316, y:10,  w:145,h:100},
+  {id:'necklace',label:'Neck',           type:'gear',     icon:'ti-tie',         x:469, y:10,  w:145,h:100},
   {id:'ring',    label:'Ring',           type:'gear',     icon:'ti-circle',      x:622, y:10,  w:145,h:100},
   // Gear row 2: Weapon · Feet · Belt
   {id:'weapon',  label:'Weapon',         type:'gear',     icon:'ti-sword',       x:10,  y:106, w:145,h:100},
-  {id:'boots',   label:'Feet',           type:'gear',     icon:'ti-arrow-up',    x:163, y:106, w:145,h:100},
-  {id:'pelvic',  label:'Belt',           type:'gear',     icon:'ti-adjustments', x:316, y:106, w:145,h:100},
+  {id:'boots',   label:'Feet',           type:'gear',     icon:'ti-shoe',        x:163, y:106, w:145,h:100},
+  {id:'pelvic',  label:'Belt',           type:'gear',     icon:'ti-label',       x:316, y:106, w:145,h:100},
   {id:'mount1',  label:'Mount',          type:'mount',    icon:'ti-motorbike',   x:469, y:106, w:145,h:100},
   {id:'inv1',    label:'Inventory 1',    type:'parked',   icon:'ti-archive',     x:163, y:536, w:145,h:100},
   // Pets — top right
-  {id:'pet1',    label:'Pet 1',          type:'pet',      icon:'ti-heart',       x:830, y:10,  w:145,h:100},
-  {id:'pet2',    label:'Pet 2',          type:'pet',      icon:'ti-heart',       x:830, y:106, w:145,h:100},
-  {id:'pet3',    label:'Pet 3',          type:'pet',      icon:'ti-heart',       x:830, y:202, w:145,h:100},
+  {id:'pet1',    label:'Pet 1',          type:'pet',      icon:'ti-paw',         x:830, y:10,  w:145,h:100},
+  {id:'pet2',    label:'Pet 2',          type:'pet',      icon:'ti-paw',         x:830, y:106, w:145,h:100},
+  {id:'pet3',    label:'Pet 3',          type:'pet',      icon:'ti-paw',         x:830, y:202, w:145,h:100},
   {id:'inv2',    label:'Inventory 2',    type:'parked',   icon:'ti-archive',     x:830, y:298, w:145,h:100},
   {id:'inv3',    label:'Inventory 3',    type:'parked',   icon:'ti-archive',     x:830, y:394, w:145,h:100},
   {id:'inv4',    label:'Inventory 4',    type:'parked',   icon:'ti-archive',     x:830, y:490, w:145,h:100},
@@ -279,8 +283,8 @@ let ENTS=[
   {id:'inv7',    label:'Inventory 7',    type:'parked',   icon:'ti-archive',     x:677, y:202, w:145,h:100},
   {id:'inv8',    label:'Inventory 8',    type:'parked',   icon:'ti-archive',     x:677, y:298, w:145,h:100},
   // New pets
-  {id:'pet4',    label:'Pet 4',          type:'pet',      icon:'ti-heart',       x:830, y:298, w:145,h:100},
-  {id:'pet5',    label:'Pet 5',          type:'pet',      icon:'ti-heart',       x:830, y:394, w:145,h:100},
+  {id:'pet4',    label:'Pet 4',          type:'pet',      icon:'ti-paw',         x:830, y:298, w:145,h:100},
+  {id:'pet5',    label:'Pet 5',          type:'pet',      icon:'ti-paw',         x:830, y:394, w:145,h:100},
   {id:'inv9',    label:'Inventory 9',    type:'parked',   icon:'ti-archive',     x:677, y:394, w:145,h:100},
   {id:'inv10',   label:'Inventory 10',   type:'parked',   icon:'ti-archive',     x:677, y:490, w:145,h:100},
   {id:'inv11',   label:'Inventory 11',   type:'parked',   icon:'ti-archive',     x:677, y:586, w:145,h:100},
@@ -1022,17 +1026,17 @@ function clearEnt(id){
   renderCards();queueSave();
 }
 
-const TYPE_ICON={gear:'ti-sword',mount:'ti-star',pet:'ti-heart',parked:'ti-archive',skills:'ti-bolt',techtree:'ti-sitemap'};
+const TYPE_ICON={gear:'ti-sword',mount:'ti-motorbike',pet:'ti-paw',parked:'ti-archive',skills:'ti-bolt',techtree:'ti-sitemap'};
 const TYPE_LABEL={gear:'Gear',mount:'Ride',pet:'Pet',parked:'Inventory',skills:'Skills',techtree:'Tech Tree'};
 const GEAR_PARTS=[
-  {k:'head',   label:'Head',   icon:'icons/gears/head.png'},
+  {k:'head',   label:'Head',   icon:'ti-helmet',    slotIcon:'icons/gears/head.png'},
   {k:'armor',  label:'Armor',  icon:'ti-shield'},
-  {k:'hands',  label:'Hands',  icon:'icons/gears/hands.png'},
-  {k:'neck',   label:'Neck',   icon:'icons/gears/neck.png'},
-  {k:'ring',   label:'Ring',   icon:'icons/gears/ring.png'},
-  {k:'weapon', label:'Weapon', icon:'icons/gears/weapon.png'},
-  {k:'feet',   label:'Feet',   icon:'icons/gears/feet.png'},
-  {k:'belt',   label:'Belt',   icon:'ti-adjustments'},
+  {k:'hands',  label:'Hands',  icon:'ti-hand-stop', slotIcon:'icons/gears/hands.png'},
+  {k:'neck',   label:'Neck',   icon:'ti-tie',       slotIcon:'icons/gears/neck.png'},
+  {k:'ring',   label:'Ring',   icon:'ti-circle',    slotIcon:'icons/gears/ring.png'},
+  {k:'weapon', label:'Weapon', icon:'ti-sword',     slotIcon:'icons/gears/weapon.png'},
+  {k:'feet',   label:'Feet',   icon:'ti-shoe',      slotIcon:'icons/gears/feet.png'},
+  {k:'belt',   label:'Belt',   icon:'ti-label'},
 ];
 
 function syncSubstatsFromSlots(d){
@@ -1098,7 +1102,7 @@ function createGearEnt(partKey){
   const cW=canvas?canvas.clientWidth:800, cH=canvas?canvas.clientHeight:600;
   const id='gear_'+Date.now();
   const w=145,h=100;
-  const newEnt={id,label:part.label,type:'gear',icon:part.icon,x:Math.round(cW/2-w/2),y:Math.round(cH/2-h/2),w,h,_dynamic:true};
+  const newEnt={id,label:part.label,type:'gear',icon:part.icon,slotIcon:part.slotIcon,x:Math.round(cW/2-w/2),y:Math.round(cH/2-h/2),w,h,_dynamic:true};
   ENTS.push(newEnt);
   state[id]=defData(id);
   if(!state.positions)state.positions={};
