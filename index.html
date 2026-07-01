@@ -237,11 +237,12 @@ function ascensionProgress(){
   PILLARS.forEach(p=>{out[p.k]={cur:a[p.levelKey]||1, req:p.req, label:p.levelLabel};});
   return out;
 }
-const NAME_ICON={
+const PET_NAME_ICON={
   'electry':'icons/pets/rabbit.png','serpent':'icons/pets/snake.png','cerberus':'icons/pets/dog.png',
-  'enchanted elk':'icons/pets/deer.png','kitsune':'icons/pets/fox.png','brown leaf':'icons/pets/leaf.png',
-  'plasma rifle':'icons/pets/rifle.png',
-  'lily pad':'icons/mounts/lilypad.png','lily leaf':'icons/mounts/lily-leaf.png','treant':'icons/pets/treant.png',
+  'enchanted elk':'icons/pets/deer.png','kitsune':'icons/pets/fox.png','treant':'icons/pets/treant.png',
+};
+const MOUNT_NAME_ICON={
+  'lily pad':'icons/mounts/lilypad1.png','lily leaf':'icons/mounts/lily-leaf.png','brown leaf':'icons/mounts/leaf.png',
 };
 const SLOT_ICON={
   helmet:'icons/gears/head.png',gloves:'icons/gears/hands.png',necklace:'icons/gears/neck.png',
@@ -249,12 +250,27 @@ const SLOT_ICON={
 };
 function itemIcon(e,d){
   const n=(d.name||'').toLowerCase();
-  return NAME_ICON[n]||SLOT_ICON[e.id]||e.slotIcon||e.icon;
+  if(e.type==='mount') return MOUNT_NAME_ICON[n]||e.icon;
+  if(e.type==='pet'||e.type==='parked') return PET_NAME_ICON[n]||e.icon;
+  return PET_NAME_ICON[n]||SLOT_ICON[e.id]||e.slotIcon||e.icon;
 }
-function renderIcon(iconVal,col){
-  if(iconVal.endsWith('.png'))
-    return `<span style="display:inline-block;width:14px;height:14px;margin-top:1px;flex-shrink:0;background-color:${col};-webkit-mask-image:url(${iconVal});mask-image:url(${iconVal});-webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;" aria-hidden="true"></span>`;
-  return `<i class="ti ${iconVal}" style="font-size:12px;color:${col};margin-top:1px;flex-shrink:0;" aria-hidden="true"></i>`;
+function tiClass(icon){
+  const v=icon||'ti-help';
+  return v.startsWith('ti-')?v:'ti-'+v;
+}
+function renderIcon(iconVal,col,fallbackIcon,size=14){
+  const fb=tiClass(fallbackIcon);
+  const px=size+'px';
+  const fs=Math.max(10,Math.round(size*0.85))+'px';
+  if(iconVal.endsWith('.png')){
+    const mask=`background-color:${col};-webkit-mask-image:url(${iconVal});mask-image:url(${iconVal});-webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center;`;
+    return `<span style="display:inline-flex;width:${px};height:${px};margin-top:1px;flex-shrink:0;align-items:center;justify-content:center;position:relative;" aria-hidden="true">`+
+      `<span class="ic-mask" style="display:block;width:${px};height:${px};${mask}"></span>`+
+      `<img src="${iconVal}" alt="" style="position:absolute;width:0;height:0;opacity:0;pointer-events:none;" onerror="const p=this.parentElement;p.querySelector('.ic-mask').style.display='none';p.querySelector('.ic-fb').style.display='inline-block';">`+
+      `<i class="ti ic-fb ${fb}" style="display:none;font-size:${fs};color:${col};line-height:1;" aria-hidden="true"></i>`+
+    `</span>`;
+  }
+  return `<i class="ti ${tiClass(iconVal)}" style="font-size:${fs};color:${col};margin-top:1px;flex-shrink:0;" aria-hidden="true"></i>`;
 }
 
 let ENTS=[
@@ -817,7 +833,7 @@ function renderCards(){
     h+=`<div class="ecard ${e.type}${isSel?' sel':''}" data-eid="${e.id}" style="left:${pos.x}px;top:${pos.y}px;width:${renderW}px;height:${calcHeight}px;--theme-color:${tcol};${opacityStyle};cursor:pointer;" onmousedown="startDrag(event,'${e.id}')" onclick="cardClick(event,'${e.id}')">
       <div class="etop" style="background:${tcol};" onmousedown="event.stopPropagation()" onclick="toggleEditRibbon(event,'${e.id}')">${d.rarity?`<span>${d.rarity}</span>`:''}</div>
       <div style="padding:5px 9px 2px;display:flex;align-items:flex-start;gap:5px;position:relative;">
-        ${renderIcon(itemIcon(e,d),tcol)}
+        ${renderIcon(itemIcon(e,d),tcol,e.icon)}
         <div style="overflow:hidden;min-width:0;flex:1;">
           <div style="font-size:11px;font-weight:500;color:var(--text-primary);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.2;">${title}${!d.name&&e.type==='gear'&&lv?lv:''}</div>
           ${subtitle?`<div style="font-size:9px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${subtitle}</div>`:''}
@@ -1063,9 +1079,7 @@ function buildGearPartGrid(){
   const grid=document.getElementById('new-card-gear-grid');
   if(grid.dataset.built) return;
   grid.innerHTML=GEAR_PARTS.map(p=>{
-    const icon=p.icon.endsWith('.png')
-      ? `<span style="display:inline-block;width:22px;height:22px;background-color:#968DF2;-webkit-mask-image:url(${p.icon});mask-image:url(${p.icon});-webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;" aria-hidden="true"></span>`
-      : `<i class="ti ${p.icon}" style="font-size:22px;color:#968DF2;" aria-hidden="true"></i>`;
+    const icon=renderIcon(p.icon,'#968DF2','ti-sword',22);
     return `<button onclick="createGearEnt('${p.k}')" style="padding:10px;display:flex;flex-direction:column;align-items:center;gap:5px;font-size:10px;">${icon}<span>${p.label}</span></button>`;
   }).join('');
   grid.dataset.built='1';
