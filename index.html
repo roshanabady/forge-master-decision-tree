@@ -145,13 +145,13 @@ input[type="checkbox"] {
     <button onclick="exportJSON()" style="font-size:11px;padding:4px 8px;" title="Download build as JSON"><i class="ti ti-download" aria-hidden="true"></i></button>
     <button onclick="document.getElementById('import-file').click()" style="font-size:11px;padding:4px 8px;" title="Import build from JSON"><i class="ti ti-upload" aria-hidden="true"></i></button>
     <input type="file" id="import-file" accept=".json" style="display:none;" onchange="importJSON(event)">
+    <button id="undo-btn" onclick="undoDelete()" style="display:none;font-size:11px;padding:4px 8px;" title="Restore the last deleted card"><i class="ti ti-arrow-back-up" aria-hidden="true"></i> Undo delete</button>
     <span id="save-btn" style="font-size:11px;padding:4px 6px;opacity:0.5;"></span>
   </div>
 </div>
 
 <div id="canvas-wrap" style="flex:1;min-height:0;overflow:hidden;">
 <div id="canvas" style="position:relative;width:1800px;height:1000px;background:var(--surface-1);border:2px solid #DCA63B;border-radius:12px;overflow:visible;transform-origin:0 0;">
-  <svg id="svg-lines" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></svg>
   <div id="cards"></div>
 </div>
 </div>
@@ -359,8 +359,7 @@ let ENTS=[
   {id:'ascension',label:'Ascension',     type:'ascension',icon:'ti-stairs-up',   x:524, y:600, w:145,h:116},
 ];
 const SUM={x:403,y:567,w:Math.round(334*1.2),h:Math.round(200*1.2)};
-const CARD_W=145, CARD_H=100;
-function cardW(e,d){return e.w;}
+const CARD_W=145;
 
 const SEED={
   weapon:   {name:'Plasma Rifle',        level:81,  rarity:'Interstellar', slots:['doubleChance','healthRegen'], substats:{doubleChance:16.2, healthRegen:3.65}, damage:737e3},
@@ -477,8 +476,10 @@ function backfillSeed(){
   ENTS.forEach(e=>{
     const s=SEED[e.id];
     if(!s||!state[e.id]) return;
-    if(s.damage&&!state[e.id].damage) state[e.id].damage=s.damage;
-    if(s.hp&&!state[e.id].hp) state[e.id].hp=s.hp;
+    // only backfill records saved before these fields existed (undefined),
+    // never values the user deliberately zeroed out
+    if(s.damage&&state[e.id].damage==null) state[e.id].damage=s.damage;
+    if(s.hp&&state[e.id].hp==null) state[e.id].hp=s.hp;
     if(e.type==='skills'){
       if(state[e.id].slots&&state[e.id].slots.length>3) state[e.id].slots=state[e.id].slots.slice(0,3);
       if(s.slots){
@@ -585,18 +586,8 @@ function parseBig(str){
   return m[2]?num*BIG_SUFFIX[m[2]]:num;
 }
 
-function entPos(e){
-  const p=state.positions&&state.positions[e.id];
-  return p?{x:p.x,y:p.y}:{x:e.x,y:e.y};
-}
-function sumPos(){
-  const p=state.positions&&state.positions['summary'];
-  return p?{x:p.x,y:p.y}:{x:SUM.x,y:SUM.y};
-}
-function drawLines(){
-  const sp=sumPos(),sc={x:sp.x+SUM.w/2,y:sp.y+SUM.h/2};
-  let h='';
-  document.getElementById('svg-lines').innerHTML=h;
+function esc(s){
+  return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 function totals(){
@@ -620,7 +611,7 @@ function totals(){
   return t;
 }
 
-function cardBody(e,d,isSel){
+function cardBody(e,d,isSel,buildTotals){
   if(isSel) return makeInlineEditor(e,d);
 
   if(e.type==='skills'){
@@ -628,7 +619,7 @@ function cardBody(e,d,isSel){
     const names=slots.filter(s=>s.name&&s.name.trim()).map(s=>{
       const sd=parseFloat(s.damage)||0,sh=parseFloat(s.hp)||0;
       const stats=(sd||sh)?` <span style="font-size:8px;color:var(--text-muted);">${sd?'⚔'+fmtBig(sd):''}${sd&&sh?' ':''}${sh?'♥'+fmtBig(sh):''}</span>`:'';
-      return `<div style="font-size:10px;color:var(--text-secondary);padding:1px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${s.name} <span style="font-weight:500;color:var(--text-primary);">Lv${s.level}</span>${stats}</div>`;
+      return `<div style="font-size:10px;color:var(--text-secondary);padding:1px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(s.name)} <span style="font-weight:500;color:var(--text-primary);">Lv${s.level}</span>${stats}</div>`;
     }).join('');
     const dmgV=parseFloat(d.damage)||0,hpV=parseFloat(d.hp)||0;
     const statsRow=(dmgV||hpV)?`<div style="display:flex;gap:8px;font-size:10px;color:var(--text-secondary);padding:1px 0;margin-bottom:2px;">${dmgV?`<span>⚔ <span style="font-weight:500;color:var(--text-primary);">${fmtBig(dmgV)}</span></span>`:''} ${hpV?`<span>♥ <span style="font-weight:500;color:var(--text-primary);">${fmtBig(hpV)}</span></span>`:''}</div>`:'';
@@ -666,7 +657,7 @@ function cardBody(e,d,isSel){
     return valB - valA;
   });
 
-  const t = ((d.status||'equipped')==='parked' && !isSel) ? totals() : null;
+  const t = ((d.status||'equipped')==='parked' && !isSel) ? buildTotals : null;
 
   const rows=sortedSlots.map(k=>{
     const s=SS.find(ss=>ss.k===k),v=parseFloat((d.substats||{})[k])||0;
@@ -713,7 +704,7 @@ function makeInlineEditor(e,d){
       <div style="font-size:10px;font-weight:500;color:var(--text-secondary);margin:6px 0 2px;">Equipped Skills</div>`
       +slots.map((sk,i)=>`<div style="margin:3px 0;">
         <div style="display:grid;grid-template-columns:1fr 42px;gap:4px;">
-          <input id="ef-skill-${i}-name" type="text" placeholder="Skill ${i+1}" value="${sk.name||''}" onchange="updSkill(${i},'name',this.value,this)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;">
+          <input id="ef-skill-${i}-name" type="text" placeholder="Skill ${i+1}" value="${esc(sk.name||'')}" onchange="updSkill(${i},'name',this.value,this)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;">
           <input id="ef-skill-${i}-level" type="number" value="${sk.level||''}" min="0" max="99" placeholder="Lv" onchange="updSkill(${i},'level',+this.value||0,this)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;text-align:center;">
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:2px;">
@@ -799,12 +790,12 @@ function makeInlineEditor(e,d){
 
     content=`
       <div style="margin-top:6px;display:grid;grid-template-columns:1fr 42px;gap:4px;">
-        <input id="ef-${e.id}-name" type="text" placeholder="Item Name" value="${d.name||''}" onchange="updField('${e.id}','name',this.value,this)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;">
+        <input id="ef-${e.id}-name" type="text" placeholder="Item Name" value="${esc(d.name||'')}" onchange="updField('${e.id}','name',this.value,this)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;">
         <input id="ef-${e.id}-level" type="number" placeholder="Lv" value="${d.level||''}" min="0" onchange="updField('${e.id}','level',+this.value||0,this)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;text-align:center;">
       </div>
       <div style="margin-top:4px;">
         <select id="ef-${e.id}-rarity" onchange="updField('${e.id}','rarity',this.value,this)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;">
-          ${rarList.map(r=>`<option value="${r}"${d.rarity===r?' selected':''}>${r||'— Rarity —'}</option>`).join('')}
+          ${rarList.map(r=>`<option value="${esc(r)}"${d.rarity===r?' selected':''}>${esc(r)||'— Rarity —'}</option>`).join('')}
         </select>
       </div>
       <div style="margin-top:4px;display:grid;grid-template-columns:1fr 1fr;gap:4px;">
@@ -887,22 +878,22 @@ function renderCards(){
     }
 
     const pos=state.positions&&state.positions[e.id]?state.positions[e.id]:{x:e.x,y:e.y};
-    const renderW=cardW(e,d);
+    const renderW=e.w;
     const capLevel=isStatEnt?cardRollCapLevel(e,d):null;
     const capClass=capLevel?` cap-${capLevel==='at'?'at':'near'}`:'';
     const capRibbon=capLevel&&!isSel?capStatusLabel(capLevel):'';
     h+=`<div class="ecard ${e.type}${isSel?' sel':''}${capClass}" data-eid="${e.id}" style="left:${pos.x}px;top:${pos.y}px;width:${renderW}px;height:${calcHeight}px;--theme-color:${tcol};${opacityStyle};cursor:pointer;" onmousedown="startDrag(event,'${e.id}')" onclick="cardClick(event,'${e.id}')">
-      <div class="etop" style="background:${tcol};"${capRibbon?` data-cap-label="${capRibbon}"`:''}>${d.rarity?`<span>${d.rarity}</span>`:''}</div>
+      <div class="etop" style="background:${tcol};"${capRibbon?` data-cap-label="${capRibbon}"`:''}>${d.rarity?`<span>${esc(d.rarity)}</span>`:''}</div>
       <div style="padding:5px 9px 2px;display:flex;align-items:flex-start;gap:5px;position:relative;">
         ${renderIcon(itemIcon(e,d),tcol,e.icon)}
         <div style="overflow:hidden;min-width:0;flex:1;">
-          <div style="font-size:11px;font-weight:500;color:var(--text-primary);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.2;">${title}${!d.name&&e.type==='gear'&&lv?lv:''}</div>
+          <div style="font-size:11px;font-weight:500;color:var(--text-primary);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.2;">${esc(title)}${!d.name&&e.type==='gear'&&lv?lv:''}</div>
           ${subtitle?`<div style="font-size:9px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${subtitle}</div>`:''}
         </div>
         ${(()=>{const dv=parseFloat(d.damage)||0,hv=parseFloat(d.hp)||0;return(dv||hv)?`<div style="display:flex;flex-direction:column;align-items:flex-end;font-size:7px;color:var(--text-muted);flex-shrink:0;line-height:1.3;">${dv?`<span>⚔${fmtBig(dv)}</span>`:''}${hv?`<span>♥${fmtBig(hv)}</span>`:''}</div>`:''})()}
         ${isSel?`<div style="display:flex;flex-direction:column;gap:2px;flex-shrink:0;"><button onclick="closeEdit(event)" style="font-size:11px;padding:0 5px;line-height:17px;border-radius:3px;opacity:0.7;" title="Close">×</button><button onclick="event.stopPropagation();dupEnt('${e.id}')" style="font-size:9px;padding:0 5px;line-height:17px;border-radius:3px;opacity:0.7;" title="Duplicate"><i class="ti ti-copy" aria-hidden="true"></i></button></div>`:''}
       </div>
-      ${cardBody(e,d,isSel)}
+      ${cardBody(e,d,isSel,t)}
       ${statusFooter}
     </div>`;
   });
@@ -956,24 +947,6 @@ function renderCards(){
   </div>`;
   document.getElementById('cards').innerHTML=h;
   restoreFocus();
-}
-
-function renderSummaryRows(){
-  const t=totals();let h='';
-  h+=`<div style="display:flex;gap:20px;padding:6px 0 8px;border-bottom:0.5px solid var(--border);margin-bottom:4px;">
-    <div style="font-size:12px;color:var(--text-secondary);">⚔ Total DMG <span style="font-weight:600;color:var(--text-primary);margin-left:4px;">${fmtBig(t.damage)}</span></div>
-    <div style="font-size:12px;color:var(--text-secondary);">♥ Total HP <span style="font-weight:600;color:var(--text-primary);margin-left:4px;">${fmtBig(t.hp)}</span></div>
-  </div>`;
-  SS.forEach(s=>{
-    const raw=t[s.k],v=fmtVal(raw),pct=s.tgt?Math.min(100,(raw/s.tgt)*100):Math.min(100,(raw/s.max)*50),met=s.tgt&&raw>=s.tgt,bc=met?'#2ACC97':s.tgt&&raw>s.tgt*0.55?'#DCA63B':'#378ADD';
-    h+=`<div style="display:grid;grid-template-columns:110px 1fr 56px ${s.tgt?'80px':'0'};gap:8px;align-items:center;padding:5px 0;border-bottom:0.5px solid var(--border);">
-      <span style="font-size:12px;color:var(--text-secondary);">${s.l}</span>
-      <div style="height:4px;background:var(--surface-0);border-radius:2px;overflow:hidden;"><div style="width:${pct}%;height:100%;background:${bc};border-radius:2px;transition:width 0.3s;"></div></div>
-      <span style="font-size:12px;font-weight:500;color:${met?'#2ACC97':'var(--text-primary)'};text-align:right;">${s.k==='cooldown'?'-':''}${v}%</span>
-      ${s.tgt?`<span style="font-size:10px;color:var(--text-muted);text-align:right;">${s.tl}</span>`:''}
-    </div>`;
-  });
-  document.getElementById('summary-rows').innerHTML=h;
 }
 
 function selEnt(id){
@@ -1058,8 +1031,6 @@ function updField(id,f,v,el){
       }
     }
   }
-  const entForClamp=ENTS.find(e=>e.id===id);
-  if(f==='status'&&entForClamp?.type==='mount') clampPositions();
   renderCards();
   queueSave();
 }
@@ -1204,8 +1175,7 @@ function dupEnt(srcId){
   const srcPos=(state.positions&&state.positions[srcId])||{x:srcEnt.x,y:srcEnt.y};
   const canvas=document.getElementById('canvas');
   const cW=canvas?canvas.clientWidth:1800;
-  const srcW=cardW(srcEnt,state[srcId]);
-  let newX=snap(srcPos.x+srcW+8), newY=snap(srcPos.y);
+  let newX=snap(srcPos.x+srcEnt.w+8), newY=snap(srcPos.y);
   if(newX+CARD_W>cW-10){newX=snap(srcPos.x);newY=snap(srcPos.y+srcEnt.h+8);}
   const newEnt={id:newId,label:srcEnt.label,type:srcEnt.type,icon:srcEnt.icon,x:newX,y:newY,w:CARD_W,h:srcEnt.h,_dynamic:true};
   ENTS.push(newEnt);
@@ -1216,9 +1186,16 @@ function dupEnt(srcId){
   renderCards();saveAll();
 }
 
+let _lastDeleted=null,_undoTimer=null;
 function deleteEnt(id){
   const ent=ENTS.find(e=>e.id===id);
   if(ent){
+    _lastDeleted={
+      ent:JSON.parse(JSON.stringify(ent)),
+      data:state[id]?JSON.parse(JSON.stringify(state[id])):null,
+      pos:state.positions&&state.positions[id]?{...state.positions[id]}:null,
+      wasBuiltIn:!ent._dynamic
+    };
     // remove the card entirely, whether it's a built-in slot or a dynamically created one
     ENTS=ENTS.filter(e=>e.id!==id);
     delete state[id];
@@ -1227,27 +1204,41 @@ function deleteEnt(id){
       if(!state.deletedIds) state.deletedIds=[];
       if(!state.deletedIds.includes(id)) state.deletedIds.push(id);
     }
+    showUndo();
   }
   selId=null;
   renderCards();saveAll();
 }
-
-function swapEnts(id1){
-  const id2 = document.getElementById('swap-' + id1).value;
-  if(!id2 || id1 === id2) return;
-  
-  // Deep copy states to swap cleanly
-  const temp = JSON.parse(JSON.stringify(state[id1]));
-  state[id1] = JSON.parse(JSON.stringify(state[id2]));
-  state[id2] = temp;
-  
-  renderCards();
-  
-  saveAll();
+function showUndo(){
+  const el=document.getElementById('undo-btn');
+  if(!el)return;
+  el.style.display='inline-block';
+  clearTimeout(_undoTimer);
+  _undoTimer=setTimeout(hideUndo,10000);
+}
+function hideUndo(){
+  const el=document.getElementById('undo-btn');
+  if(el)el.style.display='none';
+  _lastDeleted=null;
+}
+function undoDelete(){
+  if(!_lastDeleted)return;
+  const {ent,data,pos,wasBuiltIn}=_lastDeleted;
+  if(!ENTS.find(e=>e.id===ent.id)) ENTS.push(ent);
+  state[ent.id]=data||defData(ent.id);
+  if(pos){if(!state.positions)state.positions={};state.positions[ent.id]=pos;}
+  if(wasBuiltIn&&state.deletedIds) state.deletedIds=state.deletedIds.filter(x=>x!==ent.id);
+  hideUndo();
+  renderCards();saveAll();
 }
 
 function exportJSON(){
-  const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+  const payload={
+    formatVersion:2,
+    dynEnts:ENTS.filter(e=>e._dynamic),
+    state
+  };
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
   a.download=`forge-master-build-${new Date().toISOString().slice(0,10)}.json`;
@@ -1259,8 +1250,20 @@ function importJSON(ev){
   reader.onload=function(){
     try{
       const imported=JSON.parse(reader.result);
-      ENTS.forEach(e=>{if(imported[e.id])state[e.id]=imported[e.id];});
-      if(imported.positions) state.positions=imported.positions;
+      // v2 envelope carries dynamic card definitions; v1 files are the bare state object
+      const isV2=imported&&imported.formatVersion>=2&&imported.state;
+      const src=isV2?imported.state:imported;
+      if(isV2&&Array.isArray(imported.dynEnts)){
+        imported.dynEnts.forEach(def=>{if(!ENTS.find(x=>x.id===def.id))ENTS.push(def);});
+      }
+      if(Array.isArray(src.deletedIds)){
+        state.deletedIds=src.deletedIds;
+        const delSet=new Set(src.deletedIds);
+        ENTS=ENTS.filter(e=>!delSet.has(e.id));
+      }
+      ENTS.forEach(e=>{if(src[e.id])state[e.id]=src[e.id];});
+      if(src.positions) state.positions=src.positions;
+      if(src.charBonus) state.charBonus=src.charBonus;
       renderCards();saveAll();
     }catch(err){alert('Invalid JSON file');}
   };
@@ -1276,7 +1279,7 @@ document.addEventListener('click',function(e){
   if(db) saveAll();
 });
 document.addEventListener('keydown',function(e){
-  if(e.key==='Escape'&&selId){selId=null;renderCards();return;}
+  if(e.key==='Escape'&&selId){flushEditorValues();selId=null;renderCards();if(db)saveAll();return;}
   if(e.key!=='Tab'||!selId)return;
   const card=document.querySelector('.ecard.sel');
   const cur=document.activeElement;
@@ -1333,7 +1336,7 @@ document.addEventListener('mouseup',function(ev){
     };
     _dragMoved=true;
     _drag=null;
-    drawLines();queueSave();
+    queueSave();
   } else {
     _drag=null;
     // cardClick on the card will fire next and handle selection
@@ -1389,7 +1392,7 @@ function autoLayout(){
     y:Math.round(cH/2-SUM.h/2)
   };
 
-  clampPositions();renderCards();drawLines();queueSave();
+  clampPositions();renderCards();queueSave();
 }
 
 function clampPositions(){
@@ -1399,8 +1402,7 @@ function clampPositions(){
   ENTS.forEach(e=>{
     const p=state.positions[e.id];
     if(!p)return;
-    const w=cardW(e,state[e.id]);
-    p.x=Math.max(pad,Math.min(p.x,cW-w-pad));
+    p.x=Math.max(pad,Math.min(p.x,cW-e.w-pad));
     p.y=Math.max(pad,Math.min(p.y,cH-e.h-pad));
   });
   const sp=state.positions['summary'];
@@ -1430,8 +1432,7 @@ function snapToGrid(){
   const pinned=new Set(['skills','techtree','summary']);
   const gridItems=ENTS.filter(e=>!pinned.has(e.id)).map(e=>{
     const pos=(state.positions&&state.positions[e.id])||{x:e.x,y:e.y};
-    const ent=ENTS.find(x=>x.id===e.id);
-    return {id:e.id,x:pos.x,y:pos.y,cols:Math.max(1,Math.round(cardW(ent,state[e.id])/cellW))};
+    return {id:e.id,x:pos.x,y:pos.y,cols:Math.max(1,Math.round(e.w/cellW))};
   });
   gridItems.sort((a,b)=>{
     const ar=Math.round((a.y-pad)/cellH),br=Math.round((b.y-pad)/cellH);
@@ -1480,7 +1481,7 @@ function snapToGrid(){
   newPos['summary']={x:pad+sc2*cellW,y:pad+sr*cellH};
 
   state.positions={...(state.positions||{}),...newPos};
-  clampPositions();renderCards();drawLines();queueSave();
+  clampPositions();renderCards();queueSave();
 }
 
 function layoutCleanup(){
@@ -1489,7 +1490,7 @@ function layoutCleanup(){
 
 const CANVAS_W=1800, CANVAS_H=1000;
 let _resizeTimer;
-window.addEventListener('resize',()=>{clearTimeout(_resizeTimer);_resizeTimer=setTimeout(()=>{clampPositions();renderCards();drawLines();fitToScreen();},150);});
+window.addEventListener('resize',()=>{clearTimeout(_resizeTimer);_resizeTimer=setTimeout(()=>{clampPositions();renderCards();fitToScreen();},150);});
 
 let _zoom=1,_panX=0,_panY=0,_panning=false,_panStartX=0,_panStartY=0,_panOrigX=0,_panOrigY=0;
 function applyZoomPan(){
@@ -1548,7 +1549,7 @@ function migrateSlotVals(){
 async function init(){
   initState();await loadDB();migrateSlotVals();backfillSeed();backfillAscension();
   if(state.positions&&Object.keys(state.positions).length){
-    clampPositions();renderCards();drawLines();
+    clampPositions();renderCards();
   }else{
     autoLayout();
   }
