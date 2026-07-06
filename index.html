@@ -178,8 +178,8 @@ input[type="checkbox"] {
 const SS=[
   // Per-roll caps from Forge Master wiki (Substats page)
   {k:'atkSpeed',    l:'Atk Speed',    max:40},
-  {k:'doubleChance',l:'Double Chance',max:20,  tgt:100, tl:'cap 100%'},
-  {k:'lifesteal',   l:'Lifesteal',    max:20,  tgt:40,  tl:'floor 40%'},
+  {k:'doubleChance',l:'Double Chance',max:20},
+  {k:'lifesteal',   l:'Lifesteal',    max:20},
   {k:'critChance',  l:'Crit Chance',  max:12},
   {k:'critDmg',     l:'Crit DMG',     max:80},
   {k:'dmg',         l:'DMG',          max:15},
@@ -191,7 +191,44 @@ const SS=[
   {k:'block',       l:'Block',        max:7},
   {k:'cooldown',    l:'Skill CD',     max:6},
 ];
-SS[0].tgt=100; SS[0].tl='target 100%';
+// Build archetypes (community guidance: Atk Speed 100%+, Lifesteal 40%+, Double Chance to its
+// 100% effectiveness cap; Crit and Skill are the recognised endgame variants).
+// capped:true = value beyond tgt is wasted (in-game effectiveness cap), flagged in the summary.
+const BUILD_MODES={
+  balanced:{label:'Balanced',targets:{
+    atkSpeed:{tgt:100,tl:'target 100%'},
+    doubleChance:{tgt:100,tl:'cap 100%',capped:true},
+    lifesteal:{tgt:40,tl:'floor 40%'},
+  }},
+  crit:{label:'Crit',targets:{
+    atkSpeed:{tgt:100,tl:'target 100%'},
+    doubleChance:{tgt:100,tl:'cap 100%',capped:true},
+    lifesteal:{tgt:40,tl:'floor 40%'},
+    critChance:{tgt:100,tl:'cap 100%',capped:true},
+  }},
+  skill:{label:'Skill',targets:{
+    atkSpeed:{tgt:100,tl:'target 100%'},
+    doubleChance:{tgt:100,tl:'cap 100%',capped:true},
+    lifesteal:{tgt:40,tl:'floor 40%'},
+    skillDmg:{tgt:100,tl:'target 100%'},
+    cooldown:{tgt:30,tl:'target 30%'},
+  }},
+};
+function applyBuildMode(){
+  const mode=BUILD_MODES[state.buildMode]?state.buildMode:'balanced';
+  const targets=BUILD_MODES[mode].targets;
+  SS.forEach(s=>{
+    const t=targets[s.k];
+    if(t){s.tgt=t.tgt;s.tl=t.tl;s.capped=!!t.capped;}
+    else{delete s.tgt;delete s.tl;s.capped=false;}
+  });
+}
+function setBuildMode(mode){
+  if(!BUILD_MODES[mode])return;
+  state.buildMode=mode;
+  applyBuildMode();
+  renderCards();queueSave();
+}
 const SUBSTAT_WIKI='https://forge-master.fandom.com/wiki/Substats';
 const CAP_NEAR_RATIO=0.9;
 const CAP_AT_EPS=0.25;
@@ -240,21 +277,22 @@ const SK_TYPES=['Active','Passive','Ultimate'];
 const RARITY_RANK={
   '':-1,
   Common:0, Uncommon:1, Rare:2, Epic:3, Legendary:4, Ultimate:5, Mythic:6,
-  Space:7, Interstellar:8, Multiverse:9, Quantum:10
+  Space:7, Interstellar:8, Multiverse:9, Quantum:10, Divine:11
 };
 const RARITIES=Object.keys(RARITY_RANK).sort((a,b)=>RARITY_RANK[a]-RARITY_RANK[b]);
 
 const RARITY_COL={
   Space:'#E96B3E',
-  Interstellar:'#D946EF', 
-  Multiverse:'#7DD3FC',   
-  Quantum:'#5B3FA0',
-  Common:'#D1D5DB',       
+  Interstellar:'#D946EF',
+  Multiverse:'#7DD3FC',
+  Quantum:'#8B5CF6',
+  Divine:'#F5E7A3',
+  Common:'#D1D5DB',
   Uncommon:'#2ACC97',
   Rare:'#4FA3F7',
   Epic:'#968DF2',
   Legendary:'#FACC15',
-  Mythic:'#F05B5A',
+  Mythic:'#E64AC8',
   Ultimate:'#DC2626'
 };
 const COL={gear:'#968DF2',mount:'#2ACC97',pet:'#E96B3E',skills:'#DCA63B',techtree:'#2982D9',ascension:'#C497FE',parked:'#666666'};
@@ -288,6 +326,8 @@ function ascensionProgress(){
 const PET_NAME_ICON={
   'electry':'icons/pets/rabbit.png','serpent':'icons/pets/snake.png','cerberus':'icons/pets/dog.png',
   'enchanted elk':'icons/pets/deer.png','kitsune':'icons/pets/fox.png','treant':'icons/pets/treant.png',
+  // Mythic pets (no PNG art yet — Tabler icon fallbacks)
+  'genie':'ti-lamp','spectral tiger':'ti-cat','baby dragon':'ti-flame',
 };
 const MOUNT_NAME_ICON={
   'lily pad':'icons/mounts/lilypad1.png','lily leaf':'icons/mounts/lily-leaf.png','brown leaf':'icons/mounts/leaf.png',
@@ -545,6 +585,10 @@ async function loadDB(){
       const r=st.get('_charBonus');
       r.onsuccess=()=>{if(r.result)state.charBonus=r.result.data;res();};
       r.onerror=()=>res();
+    }),new Promise(res=>{
+      const r=st.get('_buildMode');
+      r.onsuccess=()=>{if(r.result)state.buildMode=r.result.data;res();};
+      r.onerror=()=>res();
     })]);
   }catch(err){db=null;}
 }
@@ -557,6 +601,7 @@ async function saveAll(){
   st.put({id:'_dynEnts',data:ENTS.filter(e=>e._dynamic)});
   st.put({id:'_deletedIds',data:state.deletedIds||[]});
   st.put({id:'_charBonus',data:state.charBonus||{damagePct:0,hpPct:0}});
+  st.put({id:'_buildMode',data:state.buildMode||'balanced'});
   await new Promise(res=>{tx.oncomplete=res;tx.onerror=res;});
   btn.innerHTML='<i class="ti ti-check" aria-hidden="true"></i> Saved';
   setTimeout(()=>{btn.innerHTML='<i class="ti ti-device-floppy" aria-hidden="true"></i> Save';},1500);
@@ -905,12 +950,17 @@ function renderCards(){
     const v=parseFloat(t[s.k])||0;
     const pct=Math.min(100,(v/s.tgt)*100);
     const met=v>=s.tgt;
+    const over=s.capped&&v>s.tgt?fmtVal(v-s.tgt):0;
     const bc=met?'#2ACC97':v>s.tgt*0.55?'#DCA63B':'#E96B3E';
+    const valCol=over?'#DCA63B':met?'#2ACC97':'var(--text-primary)';
+    const tailLabel=over
+      ?`<span style="font-size:10px;color:#DCA63B;text-align:right;" title="${over}% over the ${s.tgt}% effectiveness cap is wasted — reroll candidate">${over}% wasted</span>`
+      :`<span style="font-size:10px;color:var(--text-muted);text-align:right;">${s.tl}</span>`;
     return `<div style="display:grid;grid-template-columns:90px 1fr 48px 60px;gap:6px;align-items:center;padding:4px 0;border-bottom:0.5px solid var(--border);">
       <span style="font-size:11px;color:var(--text-secondary);">${s.l}</span>
       <div style="height:4px;background:var(--surface-0);border-radius:2px;overflow:hidden;"><div style="width:${pct}%;height:100%;background:${bc};border-radius:2px;transition:width 0.3s;"></div></div>
-      <span style="font-size:11px;font-weight:500;color:${met?'#2ACC97':'var(--text-primary)'};text-align:right;">${s.k==='cooldown'?'-':''}${fmtVal(v)}%</span>
-      <span style="font-size:10px;color:var(--text-muted);text-align:right;">${s.tl}</span>
+      <span style="font-size:11px;font-weight:500;color:${valCol};text-align:right;">${s.k==='cooldown'?'-':''}${fmtVal(v)}%</span>
+      ${tailLabel}
     </div>`;
   }).join('');
   const CHART_H=52;
@@ -939,6 +989,10 @@ function renderCards(){
         <span>⚔ <span style="font-weight:600;color:var(--text-primary);">${fmtBig(t.damage)||'—'}</span></span>
         <span>♥ <span style="font-weight:600;color:var(--text-primary);">${fmtBig(t.hp)||'—'}</span></span>
       </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:4px;padding:0 12px 4px;">
+      <span style="font-size:9px;color:var(--text-muted);margin-right:2px;">Targets</span>
+      ${Object.entries(BUILD_MODES).map(([k,m])=>`<button onclick="event.stopPropagation();setBuildMode('${k}')" style="font-size:9px;padding:1px 8px;${(state.buildMode||'balanced')===k?'background:#378ADD !important;border-color:#378ADD !important;font-weight:600;':'opacity:0.55;'}" title="Switch summary targets to the ${m.label} build archetype">${m.label}</button>`).join('')}
     </div>
     <div style="padding:0 12px 4px;">${mainRows}</div>
     <div style="padding:4px 8px 8px;">
@@ -1547,7 +1601,7 @@ function migrateSlotVals(){
 }
 
 async function init(){
-  initState();await loadDB();migrateSlotVals();backfillSeed();backfillAscension();
+  initState();await loadDB();migrateSlotVals();backfillSeed();backfillAscension();applyBuildMode();
   if(state.positions&&Object.keys(state.positions).length){
     clampPositions();renderCards();
   }else{
