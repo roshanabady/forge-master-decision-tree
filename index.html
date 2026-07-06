@@ -127,6 +127,7 @@ input[type="checkbox"] {
 }
 .ecard.cap-near:not(.sel) .etop::after { color: rgba(90,60,0,0.85); }
 .ecard.cap-at:not(.sel) .etop::after { color: rgba(0,50,35,0.85); }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 </style>
 
 </head>
@@ -146,6 +147,7 @@ input[type="checkbox"] {
       <span style="opacity:0.85;"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#DCA63B;margin-right:3px;vertical-align:middle;"></span>Near cap</span>
     </div>
     <button onclick="openNewCardModal()" style="font-size:11px;padding:4px 10px;" title="Add new card"><i class="ti ti-plus" aria-hidden="true"></i> New Card</button>
+    <button onclick="openScanModal()" style="font-size:11px;padding:4px 10px;" title="Scan a gear card from a photo — take a picture, choose an image, or drop one on the board"><i class="ti ti-camera" aria-hidden="true"></i> Scan Gear</button>
     <button onclick="fitToScreen()" style="font-size:11px;padding:4px 8px;opacity:0.7;" title="Scale the whole board to fit your screen"><i class="ti ti-arrows-diagonal-minimize-2" aria-hidden="true"></i> Fit Screen</button>
 
     <button onclick="layoutCleanup()" style="font-size:11px;padding:4px 8px;opacity:0.7;" title="Snap current card positions to grid without moving them out of place"><i class="ti ti-broom" aria-hidden="true"></i> Layout Clean-up</button>
@@ -179,6 +181,71 @@ input[type="checkbox"] {
     <div id="new-card-gear-grid" style="display:none;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:20px;"></div>
     <button id="new-card-back-btn" onclick="backNewCardModal()" style="display:none;width:100%;padding:6px;font-size:11px;opacity:0.7;margin-bottom:8px;">← Back</button>
     <button onclick="closeNewCardModal()" style="width:100%;padding:6px;font-size:11px;opacity:0.7;">Cancel</button>
+  </div>
+</div>
+
+<!-- Scan gear modal -->
+<div id="scan-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:999;align-items:center;justify-content:center;">
+  <div style="background:var(--surface-2);border:1px solid var(--border-strong);border-radius:12px;padding:24px 28px;width:360px;max-width:92vw;max-height:86vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.5);" onclick="event.stopPropagation()">
+    <div style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:4px;">Scan gear card</div>
+
+    <div id="scan-step-capture">
+      <div style="font-size:10px;color:var(--text-muted);margin:2px 0 14px;">Best-effort OCR from a photo of the item's screen in-game. Always double-check the fields before saving.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+        <button onclick="document.getElementById('scan-camera-input').click()" style="padding:14px 8px;display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11px;"><i class="ti ti-camera" style="font-size:20px;color:#378ADD;" aria-hidden="true"></i>Take Photo</button>
+        <button onclick="document.getElementById('scan-file-input').click()" style="padding:14px 8px;display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11px;"><i class="ti ti-photo-up" style="font-size:20px;color:#378ADD;" aria-hidden="true"></i>Choose Image</button>
+      </div>
+      <div id="scan-dropzone" style="border:1.5px dashed var(--border-strong);border-radius:8px;padding:16px;text-align:center;font-size:10px;color:var(--text-muted);margin-bottom:16px;">…or drop an image here</div>
+      <input type="file" id="scan-camera-input" accept="image/*" capture="environment" style="display:none;" onchange="handleScanInput(event)">
+      <input type="file" id="scan-file-input" accept="image/*" style="display:none;" onchange="handleScanInput(event)">
+    </div>
+
+    <div id="scan-step-loading" style="display:none;text-align:center;padding:30px 0;">
+      <i class="ti ti-loader-2" style="font-size:28px;color:#378ADD;display:inline-block;animation:spin 1s linear infinite;" aria-hidden="true"></i>
+      <div id="scan-progress-text" style="font-size:11px;color:var(--text-secondary);margin-top:10px;">Reading image…</div>
+    </div>
+
+    <div id="scan-step-review" style="display:none;">
+      <div style="display:flex;gap:8px;margin-bottom:10px;align-items:flex-start;">
+        <img id="scan-thumb" style="width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid var(--border);flex-shrink:0;" alt="Scanned photo">
+        <div style="font-size:9px;color:var(--text-muted);flex:1;">Check every field — OCR can misread small game text. Nothing is saved until you click Create / Update.</div>
+      </div>
+      <div style="margin-bottom:6px;">
+        <label style="font-size:9px;color:var(--text-muted);display:block;margin-bottom:2px;">Card</label>
+        <select id="scan-target" class="ef-in"></select>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 42px;gap:4px;margin-bottom:6px;">
+        <div><label style="font-size:9px;color:var(--text-muted);display:block;margin-bottom:2px;">Item name</label><input id="scan-name" type="text" class="ef-in"></div>
+        <div><label style="font-size:9px;color:var(--text-muted);display:block;margin-bottom:2px;">Lv</label><input id="scan-level" type="number" min="0" class="ef-in ta-c"></div>
+      </div>
+      <div style="margin-bottom:6px;">
+        <label style="font-size:9px;color:var(--text-muted);display:block;margin-bottom:2px;">Rarity</label>
+        <select id="scan-rarity" class="ef-in"></select>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:6px;">
+        <div><label style="font-size:9px;color:var(--text-muted);display:block;margin-bottom:2px;">⚔ DMG</label><input id="scan-damage" type="text" placeholder="e.g. 13.5m" class="ef-in ta-r"></div>
+        <div><label style="font-size:9px;color:var(--text-muted);display:block;margin-bottom:2px;">♥ HP</label><input id="scan-hp" type="text" placeholder="e.g. 7b" class="ef-in ta-r"></div>
+      </div>
+      <div style="font-size:10px;font-weight:500;color:var(--text-secondary);margin:8px 0 3px;">Substats</div>
+      <div style="display:grid;grid-template-columns:1fr 70px;gap:4px;margin-bottom:4px;">
+        <select id="scan-sub-0-key" class="ef-in"></select>
+        <input id="scan-sub-0-val" type="number" step="0.1" class="ef-in ta-r">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 70px;gap:4px;margin-bottom:10px;">
+        <select id="scan-sub-1-key" class="ef-in"></select>
+        <input id="scan-sub-1-val" type="number" step="0.1" class="ef-in ta-r">
+      </div>
+      <details style="margin-bottom:10px;">
+        <summary style="font-size:9px;color:var(--text-muted);cursor:pointer;">Raw OCR text</summary>
+        <pre id="scan-raw-text" style="font-size:9px;color:var(--text-muted);white-space:pre-wrap;max-height:80px;overflow:auto;margin:4px 0 0;"></pre>
+      </details>
+      <div style="display:flex;gap:6px;">
+        <button onclick="resetScanModal()" style="flex:1;padding:6px;font-size:11px;opacity:0.7;">Rescan</button>
+        <button onclick="applyScanResult()" style="flex:1;padding:6px;font-size:11px;background:#378ADD !important;border-color:#378ADD !important;font-weight:600;">Create / Update</button>
+      </div>
+    </div>
+
+    <button onclick="closeScanModal()" style="width:100%;padding:6px;font-size:11px;opacity:0.7;margin-top:10px;">Cancel</button>
   </div>
 </div>
 
@@ -1294,6 +1361,251 @@ function createEnt(type){
   renderCards();saveAll();
 }
 
+// --- Scan Gear: OCR a photo of an in-game item card into a filled-in card ---
+// Loaded on demand (not in <head>) so the ~2MB OCR library never costs anyone who doesn't use it.
+let _tesseractLoadPromise=null, _scanImageDataUrl=null;
+function loadTesseract(){
+  if(window.Tesseract) return Promise.resolve();
+  if(_tesseractLoadPromise) return _tesseractLoadPromise;
+  _tesseractLoadPromise=new Promise((res,rej)=>{
+    const s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+    s.onload=()=>res();
+    s.onerror=()=>rej(new Error('Could not load the OCR library — check your connection and try again.'));
+    document.head.appendChild(s);
+  });
+  return _tesseractLoadPromise;
+}
+
+function openScanModal(){
+  resetScanModal();
+  const m=document.getElementById('scan-modal');
+  m.style.display='flex';
+  m.onclick=closeScanModal;
+}
+function closeScanModal(){
+  document.getElementById('scan-modal').style.display='none';
+}
+function resetScanModal(){
+  document.getElementById('scan-step-capture').style.display='block';
+  document.getElementById('scan-step-loading').style.display='none';
+  document.getElementById('scan-step-review').style.display='none';
+  document.getElementById('scan-camera-input').value='';
+  document.getElementById('scan-file-input').value='';
+  _scanImageDataUrl=null;
+  const m=document.getElementById('scan-modal');
+  if(m.style.display!=='flex'){m.style.display='flex';m.onclick=closeScanModal;}
+}
+
+function handleScanInput(ev){
+  const file=ev.target.files&&ev.target.files[0];
+  if(file) processScanFile(file);
+}
+
+function fileToDataURL(file){
+  return new Promise((res,rej)=>{
+    const r=new FileReader();
+    r.onload=()=>res(r.result);
+    r.onerror=rej;
+    r.readAsDataURL(file);
+  });
+}
+
+async function processScanFile(file){
+  if(!file.type||!file.type.startsWith('image/')){alert('Please provide an image file.');return;}
+  const m=document.getElementById('scan-modal');
+  if(m.style.display!=='flex'){m.style.display='flex';m.onclick=closeScanModal;}
+  document.getElementById('scan-step-capture').style.display='none';
+  document.getElementById('scan-step-review').style.display='none';
+  document.getElementById('scan-step-loading').style.display='block';
+  const progText=document.getElementById('scan-progress-text');
+  progText.textContent='Loading OCR engine…';
+  let worker=null;
+  try{
+    _scanImageDataUrl=await fileToDataURL(file);
+    await loadTesseract();
+    progText.textContent='Reading image…';
+    worker=await Tesseract.createWorker('eng',1,{
+      logger:info=>{
+        if(info.status==='recognizing text') progText.textContent=`Reading image… ${Math.round((info.progress||0)*100)}%`;
+      }
+    });
+    const {data}=await worker.recognize(_scanImageDataUrl);
+    showScanReview(parseGearOCR(data.text||''));
+  }catch(err){
+    alert('Could not read that image: '+(err&&err.message?err.message:err));
+    resetScanModal();
+  }finally{
+    if(worker) worker.terminate();
+  }
+}
+
+// Most-specific alias checked first so e.g. "Ranged DMG" claims its line before generic "DMG" does.
+const SS_ALIASES={
+  healthRegen:['health regen','hp regen','health regeneration'],
+  rangedDmg:['ranged dmg','ranged damage'],
+  meleeDmg:['melee dmg','melee damage'],
+  skillDmg:['skill dmg','skill damage'],
+  critDmg:['crit dmg','crit damage','critical damage','critical dmg'],
+  critChance:['crit chance','critical chance'],
+  doubleChance:['double chance','double dmg chance','double attack chance'],
+  atkSpeed:['atk speed','attack speed','atk spd'],
+  lifesteal:['lifesteal','life steal'],
+  cooldown:['skill cd','skill cooldown','cooldown'],
+  block:['block'],
+  health:['health','hp'],
+  dmg:['dmg','damage'],
+};
+const SS_PRIORITY=Object.keys(SS_ALIASES);
+
+function parseGearOCR(rawText){
+  const lines=rawText.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  const lower=rawText.toLowerCase();
+  const result={name:'',level:0,rarity:'',substats:[],damage:0,hp:0,rawText};
+
+  const lvMatch=rawText.match(/\blv\.?\s*(\d{1,4})\b/i)||rawText.match(/\blevel\s*[:\-]?\s*(\d{1,4})\b/i);
+  if(lvMatch) result.level=parseInt(lvMatch[1],10)||0;
+
+  let rarityIdx=Infinity;
+  RARITIES.filter(Boolean).forEach(r=>{
+    const idx=lower.indexOf(r.toLowerCase());
+    if(idx!==-1&&idx<rarityIdx){rarityIdx=idx;result.rarity=r;}
+  });
+
+  const claimedLines=new Set();
+  const found=[];
+  lines.forEach((line,idx)=>{
+    const ll=line.toLowerCase();
+    for(const key of SS_PRIORITY){
+      const hit=SS_ALIASES[key].some(a=>ll.includes(a));
+      if(!hit) continue;
+      const numMatch=line.match(/([+-]?\d+(?:\.\d+)?)\s*%/);
+      if(!numMatch) continue;
+      found.push({key,val:parseFloat(numMatch[1]),idx});
+      claimedLines.add(idx);
+      break;
+    }
+  });
+  found.sort((a,b)=>a.idx-b.idx);
+  result.substats=found.slice(0,2).map(f=>({key:f.key,val:f.val}));
+
+  // flat DMG/HP numbers: prefer a keyword on the same line ("HP 8.03M" / "DMG 1.45M"),
+  // fall back to first-seen/second-seen order only for numbers with no keyword hint
+  const bigNums=[];
+  lines.forEach((line,idx)=>{
+    if(claimedLines.has(idx)) return;
+    const m=line.match(/(\d+(?:\.\d+)?)\s*([kmb])\b/i);
+    if(!m) return;
+    const val=parseFloat(m[1])*(BIG_SUFFIX[m[2].toLowerCase()]||1);
+    const ll=line.toLowerCase();
+    let hint=null;
+    if(/\bhp\b|health/.test(ll)) hint='hp';
+    else if(/\bdmg\b|damage|\batk\b|power/.test(ll)) hint='damage';
+    bigNums.push({val,hint});
+  });
+  const hinted={damage:null,hp:null};
+  const unhinted=[];
+  bigNums.forEach(b=>{
+    if(b.hint&&hinted[b.hint]==null) hinted[b.hint]=b.val;
+    else unhinted.push(b.val);
+  });
+  if(hinted.damage==null&&unhinted.length) hinted.damage=unhinted.shift();
+  if(hinted.hp==null&&unhinted.length) hinted.hp=unhinted.shift();
+  result.damage=hinted.damage||0;
+  result.hp=hinted.hp||0;
+
+  for(const line of lines){
+    const ll=line.toLowerCase();
+    if(RARITIES.filter(Boolean).some(r=>ll.includes(r.toLowerCase()))) continue;
+    if(/\blv\.?\s*\d/.test(ll)||/\blevel\b/.test(ll)) continue;
+    if(/%/.test(line)) continue;
+    if(/^[\d\s.,kmb%⚔♥+\-]+$/i.test(line)) continue;
+    if(line.length<2) continue;
+    result.name=line;
+    break;
+  }
+
+  return result;
+}
+
+function scanTargetOptions(){
+  const existingGear=ENTS.filter(e=>e.type==='gear');
+  const existingOpts=existingGear.map(e=>{
+    const nm=state[e.id]&&state[e.id].name;
+    return `<option value="${e.id}">${esc(e.label)}${nm?': '+esc(nm):''}</option>`;
+  }).join('');
+  const newOpts=GEAR_PARTS.map(p=>`<option value="new:${p.k}">New ${esc(p.label)} card</option>`).join('');
+  return `<optgroup label="Update existing gear">${existingOpts}</optgroup><optgroup label="Create new">${newOpts}</optgroup>`;
+}
+
+function showScanReview(parsed){
+  document.getElementById('scan-step-loading').style.display='none';
+  document.getElementById('scan-step-review').style.display='block';
+  document.getElementById('scan-thumb').src=_scanImageDataUrl||'';
+  document.getElementById('scan-raw-text').textContent=parsed.rawText.trim()||'(no text recognized)';
+
+  document.getElementById('scan-target').innerHTML=scanTargetOptions();
+  document.getElementById('scan-name').value=parsed.name||'';
+  document.getElementById('scan-level').value=parsed.level||'';
+
+  document.getElementById('scan-rarity').innerHTML=RARITIES.map(r=>
+    `<option value="${esc(r)}"${parsed.rarity===r?' selected':''}>${esc(r)||'— Rarity —'}</option>`
+  ).join('');
+
+  document.getElementById('scan-damage').value=parsed.damage?fmtBig(parsed.damage):'';
+  document.getElementById('scan-hp').value=parsed.hp?fmtBig(parsed.hp):'';
+
+  const subKeyOptions=i=>{
+    const cur=(parsed.substats[i]||{}).key||'';
+    return `<option value=""${!cur?' selected':''}>— Substat —</option>`+
+      SS.map(s=>`<option value="${s.k}"${s.k===cur?' selected':''}>${s.l}</option>`).join('');
+  };
+  document.getElementById('scan-sub-0-key').innerHTML=subKeyOptions(0);
+  document.getElementById('scan-sub-1-key').innerHTML=subKeyOptions(1);
+  document.getElementById('scan-sub-0-val').value=(parsed.substats[0]&&parsed.substats[0].val)||'';
+  document.getElementById('scan-sub-1-val').value=(parsed.substats[1]&&parsed.substats[1].val)||'';
+}
+
+function applyScanResult(){
+  const targetVal=document.getElementById('scan-target').value;
+  let id;
+  if(targetVal.startsWith('new:')){
+    const part=GEAR_PARTS.find(p=>p.k===targetVal.slice(4));
+    if(!part){alert('Pick a card to update or create.');return;}
+    const canvas=document.getElementById('canvas');
+    const cW=canvas?canvas.clientWidth:800, cH=canvas?canvas.clientHeight:600;
+    id='gear_'+Date.now();
+    const w=145,h=100;
+    ENTS.push({id,label:part.label,type:'gear',icon:part.icon,slotIcon:part.slotIcon,x:Math.round(cW/2-w/2),y:Math.round(cH/2-h/2),w,h,_dynamic:true});
+    state[id]=defData(id);
+    if(!state.positions)state.positions={};
+    state.positions[id]={x:Math.round(cW/2-w/2),y:Math.round(cH/2-h/2)};
+  }else{
+    id=targetVal;
+    if(!id||!state[id]){alert('Pick a card to update or create.');return;}
+  }
+
+  const d=state[id];
+  d.name=document.getElementById('scan-name').value.trim();
+  d.level=parseInt(document.getElementById('scan-level').value,10)||0;
+  d.rarity=document.getElementById('scan-rarity').value;
+  d.damage=parseBig(document.getElementById('scan-damage').value);
+  d.hp=parseBig(document.getElementById('scan-hp').value);
+
+  const k0=document.getElementById('scan-sub-0-key').value;
+  const k1raw=document.getElementById('scan-sub-1-key').value;
+  const k1=k1raw===k0?'':k1raw;
+  d.activeSlots=[k0,k1];
+  d.slotVals=[parseFloat(document.getElementById('scan-sub-0-val').value)||0, k1?parseFloat(document.getElementById('scan-sub-1-val').value)||0:0];
+  ensureSlotVals(d);
+  syncSubstatsFromSlots(d);
+
+  selId=id;
+  renderCards();
+  saveAll();
+  closeScanModal();
+}
+
 function dupEnt(srcId){
   const srcEnt=ENTS.find(e=>e.id===srcId);
   if(!srcEnt) return;
@@ -1684,6 +1996,30 @@ function endPan(){
 }
 window.addEventListener('pointerup',endPan);
 window.addEventListener('pointercancel',endPan);
+
+// Drop an image of a gear card anywhere on the board to scan it (mirrors the Scan Gear button).
+// Global dragover/drop prevention stops the browser from navigating to the image if the drop misses.
+window.addEventListener('dragover',e=>e.preventDefault());
+window.addEventListener('drop',e=>{if(!e.target.closest('#canvas-wrap, #scan-dropzone'))e.preventDefault();});
+_wrap.addEventListener('dragover',function(e){
+  if(e.dataTransfer&&[...e.dataTransfer.types].includes('Files')){e.preventDefault();_wrap.style.outline='2px dashed #378ADD';}
+});
+_wrap.addEventListener('dragleave',function(){_wrap.style.outline='';});
+_wrap.addEventListener('drop',function(e){
+  e.preventDefault();
+  _wrap.style.outline='';
+  const file=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0];
+  if(file&&file.type&&file.type.startsWith('image/')) processScanFile(file);
+});
+const _scanDropzone=document.getElementById('scan-dropzone');
+_scanDropzone.addEventListener('dragover',function(e){e.preventDefault();_scanDropzone.style.borderColor='#378ADD';});
+_scanDropzone.addEventListener('dragleave',function(){_scanDropzone.style.borderColor='';});
+_scanDropzone.addEventListener('drop',function(e){
+  e.preventDefault();
+  _scanDropzone.style.borderColor='';
+  const file=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0];
+  if(file) processScanFile(file);
+});
 
 function backfillAscension(){
   if(!state.ascension) state.ascension=defData('ascension');
