@@ -460,37 +460,37 @@ function renderIcon(iconVal,col,fallbackIcon,size=14){
 
 let ENTS=[
   // Gear row 1: Head · Armor · Hands · Neck · Ring
-  {id:'helmet',  label:'Head',           type:'gear',     icon:'ti-helmet',      x:10,  y:10,  w:145,h:100},
-  {id:'body',    label:'Armor',          type:'gear',     icon:'ti-shield',      x:163, y:10,  w:145,h:100},
-  {id:'gloves',  label:'Hands',          type:'gear',     icon:'ti-hand-stop',   x:316, y:10,  w:145,h:100},
-  {id:'necklace',label:'Neck',           type:'gear',     icon:'ti-tie',         x:469, y:10,  w:145,h:100},
-  {id:'ring',    label:'Ring',           type:'gear',     icon:'ti-circle',      x:622, y:10,  w:145,h:100},
+  {id:'helmet',  label:'Head',           type:'gear',     icon:'ti-helmet',      x:10,  y:10,  w:145,h:116},
+  {id:'body',    label:'Armor',          type:'gear',     icon:'ti-shield',      x:163, y:10,  w:145,h:116},
+  {id:'gloves',  label:'Hands',          type:'gear',     icon:'ti-hand-stop',   x:316, y:10,  w:145,h:116},
+  {id:'necklace',label:'Neck',           type:'gear',     icon:'ti-tie',         x:469, y:10,  w:145,h:116},
+  {id:'ring',    label:'Ring',           type:'gear',     icon:'ti-circle',      x:622, y:10,  w:145,h:116},
   // Gear row 2: Weapon · Feet · Belt
-  {id:'weapon',  label:'Weapon',         type:'gear',     icon:'ti-sword',       x:10,  y:106, w:145,h:100},
-  {id:'boots',   label:'Feet',           type:'gear',     icon:'ti-shoe',        x:163, y:106, w:145,h:100},
-  {id:'pelvic',  label:'Belt',           type:'gear',     icon:'ti-label',       x:316, y:106, w:145,h:100},
-  {id:'mount1',  label:'Mount',          type:'mount',    icon:'ti-motorbike',   x:469, y:106, w:145,h:100},
-  {id:'inv1',    label:'Inventory 1',    type:'parked',   icon:'ti-archive',     x:163, y:536, w:145,h:100},
+  {id:'weapon',  label:'Weapon',         type:'gear',     icon:'ti-sword',       x:10,  y:106, w:145,h:116},
+  {id:'boots',   label:'Feet',           type:'gear',     icon:'ti-shoe',        x:163, y:106, w:145,h:116},
+  {id:'pelvic',  label:'Belt',           type:'gear',     icon:'ti-label',       x:316, y:106, w:145,h:116},
+  {id:'mount1',  label:'Mount',          type:'mount',    icon:'ti-motorbike',   x:469, y:106, w:145,h:116},
+  {id:'inv1',    label:'Inventory 1',    type:'parked',   icon:'ti-archive',     x:163, y:536, w:145,h:116},
   // Pets — top right
-  {id:'pet1',    label:'Pet 1',          type:'pet',      icon:'ti-paw',         x:830, y:10,  w:145,h:100},
-  {id:'pet2',    label:'Pet 2',          type:'pet',      icon:'ti-paw',         x:830, y:106, w:145,h:100},
-  {id:'pet3',    label:'Pet 3',          type:'pet',      icon:'ti-paw',         x:830, y:202, w:145,h:100},
-  {id:'inv2',    label:'Inventory 2',    type:'parked',   icon:'ti-archive',     x:830, y:298, w:145,h:100},
-  {id:'inv3',    label:'Inventory 3',    type:'parked',   icon:'ti-archive',     x:830, y:394, w:145,h:100},
-  {id:'inv4',    label:'Inventory 4',    type:'parked',   icon:'ti-archive',     x:830, y:490, w:145,h:100},
+  {id:'pet1',    label:'Pet 1',          type:'pet',      icon:'ti-paw',         x:830, y:10,  w:145,h:116},
+  {id:'pet2',    label:'Pet 2',          type:'pet',      icon:'ti-paw',         x:830, y:106, w:145,h:116},
+  {id:'pet3',    label:'Pet 3',          type:'pet',      icon:'ti-paw',         x:830, y:202, w:145,h:116},
+  {id:'inv2',    label:'Inventory 2',    type:'parked',   icon:'ti-archive',     x:830, y:298, w:145,h:116},
+  {id:'inv3',    label:'Inventory 3',    type:'parked',   icon:'ti-archive',     x:830, y:394, w:145,h:116},
+  {id:'inv4',    label:'Inventory 4',    type:'parked',   icon:'ti-archive',     x:830, y:490, w:145,h:116},
   // Inventory & Skills — second column from right
-  {id:'inv5',    label:'Inventory 5',    type:'parked',   icon:'ti-archive',     x:677, y:10,  w:145,h:100},
-  {id:'inv6',    label:'Inventory 6',    type:'parked',   icon:'ti-archive',     x:677, y:106, w:145,h:100},
-  {id:'inv7',    label:'Inventory 7',    type:'parked',   icon:'ti-archive',     x:677, y:202, w:145,h:100},
-  {id:'inv8',    label:'Inventory 8',    type:'parked',   icon:'ti-archive',     x:677, y:298, w:145,h:100},
+  {id:'inv5',    label:'Inventory 5',    type:'parked',   icon:'ti-archive',     x:677, y:10,  w:145,h:116},
+  {id:'inv6',    label:'Inventory 6',    type:'parked',   icon:'ti-archive',     x:677, y:106, w:145,h:116},
+  {id:'inv7',    label:'Inventory 7',    type:'parked',   icon:'ti-archive',     x:677, y:202, w:145,h:116},
+  {id:'inv8',    label:'Inventory 8',    type:'parked',   icon:'ti-archive',     x:677, y:298, w:145,h:116},
   // New pets
-  {id:'pet4',    label:'Pet 4',          type:'pet',      icon:'ti-paw',         x:830, y:298, w:145,h:100},
-  {id:'pet5',    label:'Pet 5',          type:'pet',      icon:'ti-paw',         x:830, y:394, w:145,h:100},
-  {id:'inv9',    label:'Inventory 9',    type:'parked',   icon:'ti-archive',     x:677, y:394, w:145,h:100},
-  {id:'inv10',   label:'Inventory 10',   type:'parked',   icon:'ti-archive',     x:677, y:490, w:145,h:100},
-  {id:'inv11',   label:'Inventory 11',   type:'parked',   icon:'ti-archive',     x:677, y:586, w:145,h:100},
-  {id:'inv12',   label:'Inventory 12',   type:'parked',   icon:'ti-archive',     x:830, y:490, w:145,h:100},
-  {id:'inv13',   label:'Inventory 13',   type:'parked',   icon:'ti-archive',     x:830, y:586, w:145,h:100},
+  {id:'pet4',    label:'Pet 4',          type:'pet',      icon:'ti-paw',         x:830, y:298, w:145,h:116},
+  {id:'pet5',    label:'Pet 5',          type:'pet',      icon:'ti-paw',         x:830, y:394, w:145,h:116},
+  {id:'inv9',    label:'Inventory 9',    type:'parked',   icon:'ti-archive',     x:677, y:394, w:145,h:116},
+  {id:'inv10',   label:'Inventory 10',   type:'parked',   icon:'ti-archive',     x:677, y:490, w:145,h:116},
+  {id:'inv11',   label:'Inventory 11',   type:'parked',   icon:'ti-archive',     x:677, y:586, w:145,h:116},
+  {id:'inv12',   label:'Inventory 12',   type:'parked',   icon:'ti-archive',     x:830, y:490, w:145,h:116},
+  {id:'inv13',   label:'Inventory 13',   type:'parked',   icon:'ti-archive',     x:830, y:586, w:145,h:116},
   {id:'skills',  label:'Skills',         type:'skills',   icon:'ti-bolt',        x:677, y:682, w:145,h:116},
   {id:'techtree',label:'Tech Tree',      type:'techtree', icon:'ti-sitemap',     x:677, y:518, w:145,h:116},
   {id:'ascension',label:'Ascension',     type:'ascension',icon:'ti-stairs-up',   x:524, y:600, w:145,h:116},
@@ -1344,7 +1344,7 @@ function createGearEnt(partKey){
   const canvas=document.getElementById('canvas');
   const cW=canvas?canvas.clientWidth:800, cH=canvas?canvas.clientHeight:600;
   const id='gear_'+Date.now();
-  const w=145,h=100;
+  const w=145,h=116;
   const newEnt={id,label:part.label,type:'gear',icon:part.icon,slotIcon:part.slotIcon,x:Math.round(cW/2-w/2),y:Math.round(cH/2-h/2),w,h,_dynamic:true};
   ENTS.push(newEnt);
   state[id]=defData(id);
@@ -1359,8 +1359,7 @@ function createEnt(type){
   const canvas=document.getElementById('canvas');
   const cW=canvas?canvas.clientWidth:800, cH=canvas?canvas.clientHeight:600;
   const id=type+'_'+Date.now();
-  const isSkillType=type==='skills'||type==='techtree';
-  const w=145, h=isSkillType?116:88;
+  const w=145, h=116;
   const newEnt={id,label:TYPE_LABEL[type],type,icon:TYPE_ICON[type],x:Math.round(cW/2-w/2),y:Math.round(cH/2-h/2),w,h,_dynamic:true};
   ENTS.push(newEnt);
   state[id]=defData(id);
@@ -1634,7 +1633,7 @@ function applyScanResult(){
     const canvas=document.getElementById('canvas');
     const cW=canvas?canvas.clientWidth:800, cH=canvas?canvas.clientHeight:600;
     id='gear_'+Date.now();
-    const w=145,h=100;
+    const w=145,h=116;
     ENTS.push({id,label:part.label,type:'gear',icon:part.icon,slotIcon:part.slotIcon,x:Math.round(cW/2-w/2),y:Math.round(cH/2-h/2),w,h,_dynamic:true});
     state[id]=defData(id);
     if(!state.positions)state.positions={};
@@ -1858,7 +1857,7 @@ function autoLayout(){
   const canvas=document.getElementById('canvas');
   if(!canvas)return;
   const cW=canvas.clientWidth, cH=canvas.clientHeight;
-  const cw=145, ch=100, gap=8, pad=10, row=ch+gap;
+  const cw=145, ch=116, gap=8, pad=10, row=ch+gap;
   if(!state.positions)state.positions={};
   const p=state.positions;
 
@@ -1927,7 +1926,7 @@ function clampPositions(){
 function snapToGrid(){
   const canvas=document.getElementById('canvas');
   if(!canvas)return;
-  const cw=145,ch=100,gap=8,pad=10,cellW=cw+gap,cellH=ch+gap;
+  const cw=145,ch=116,gap=8,pad=10,cellW=cw+gap,cellH=ch+gap;
   const cW=canvas.clientWidth,cH=canvas.clientHeight;
   const maxCols=Math.max(1,Math.floor((cW-pad*2)/cellW));
   const maxRows=Math.max(1,Math.floor((cH-pad*2)/cellH));
