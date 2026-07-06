@@ -82,6 +82,7 @@ input[type="checkbox"] {
   accent-color: var(--theme-color, #378ADD);
 }
 
+#canvas-wrap { touch-action: none; }
 .ecard {
   position: absolute;
   background: var(--surface-2);
@@ -91,6 +92,7 @@ input[type="checkbox"] {
   overflow: hidden;
   transition: border-color 0.12s, height 0.2s ease-out, width 0.2s ease-out, opacity 0.2s;
   z-index: 10;
+  touch-action: none;
 }
 .ecard:hover { border-color: var(--border-strong); }
 .ecard.sel {
@@ -103,9 +105,14 @@ input[type="checkbox"] {
 }
 .etop { position: relative; height: 14px; width: 100%; display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: grab; }
 .ecard:active .etop { cursor: grabbing; }
-.etop span { font-size: 7px; font-weight: 900; letter-spacing: 0.5px; color: rgba(0,0,0,0.7); text-shadow: 0 1px 0 rgba(255,255,255,0.15); }
+.etop span { font-size: 8px; font-weight: 900; letter-spacing: 0.5px; color: rgba(0,0,0,0.7); text-shadow: 0 1px 0 rgba(255,255,255,0.15); }
 .tcheck { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-secondary); margin: 3px 0; cursor: pointer; }
 .ss-row { display: grid; grid-template-columns: 1fr 58px 12px; gap: 4px; align-items: center; margin: 4px 0; }
+/* Inline editor building blocks */
+.ef-in { font-size: 10px; padding: 2px 4px; width: 100%; box-sizing: border-box; }
+.ta-r { text-align: right; }
+.ta-c { text-align: center; }
+.in-row { display: flex; align-items: center; gap: 3px; }
 .ecard.cap-near:not(.sel) { box-shadow: 0 0 0 1px rgba(220,166,59,0.5); }
 .ecard.cap-at:not(.sel) { box-shadow: 0 0 0 1px rgba(42,204,151,0.55); }
 .ecard.cap-near:not(.sel) .etop::after,
@@ -113,13 +120,14 @@ input[type="checkbox"] {
   content: attr(data-cap-label);
   position: absolute;
   right: 4px;
-  font-size: 6px;
+  font-size: 8px;
   font-weight: 800;
   letter-spacing: 0.4px;
   color: rgba(0,0,0,0.65);
 }
 .ecard.cap-near:not(.sel) .etop::after { color: rgba(90,60,0,0.85); }
 .ecard.cap-at:not(.sel) .etop::after { color: rgba(0,50,35,0.85); }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 </style>
 
 </head>
@@ -139,19 +147,21 @@ input[type="checkbox"] {
       <span style="opacity:0.85;"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#DCA63B;margin-right:3px;vertical-align:middle;"></span>Near cap</span>
     </div>
     <button onclick="openNewCardModal()" style="font-size:11px;padding:4px 10px;" title="Add new card"><i class="ti ti-plus" aria-hidden="true"></i> New Card</button>
+    <button onclick="openScanModal()" style="font-size:11px;padding:4px 10px;" title="Scan a gear card from a photo — take a picture, choose an image, or drop one on the board"><i class="ti ti-camera" aria-hidden="true"></i> Scan Gear</button>
     <button onclick="fitToScreen()" style="font-size:11px;padding:4px 8px;opacity:0.7;" title="Scale the whole board to fit your screen"><i class="ti ti-arrows-diagonal-minimize-2" aria-hidden="true"></i> Fit Screen</button>
 
     <button onclick="layoutCleanup()" style="font-size:11px;padding:4px 8px;opacity:0.7;" title="Snap current card positions to grid without moving them out of place"><i class="ti ti-broom" aria-hidden="true"></i> Layout Clean-up</button>
     <button onclick="exportJSON()" style="font-size:11px;padding:4px 8px;" title="Download build as JSON"><i class="ti ti-download" aria-hidden="true"></i></button>
     <button onclick="document.getElementById('import-file').click()" style="font-size:11px;padding:4px 8px;" title="Import build from JSON"><i class="ti ti-upload" aria-hidden="true"></i></button>
+    <button onclick="resetBoard()" style="font-size:11px;padding:4px 8px;opacity:0.7;" title="Reset board — clears all saved data and restores seed"><i class="ti ti-trash-x" aria-hidden="true"></i></button>
     <input type="file" id="import-file" accept=".json" style="display:none;" onchange="importJSON(event)">
+    <button id="undo-btn" onclick="undoDelete()" style="display:none;font-size:11px;padding:4px 8px;" title="Restore the last deleted card"><i class="ti ti-arrow-back-up" aria-hidden="true"></i> Undo delete</button>
     <span id="save-btn" style="font-size:11px;padding:4px 6px;opacity:0.5;"></span>
   </div>
 </div>
 
 <div id="canvas-wrap" style="flex:1;min-height:0;overflow:hidden;">
 <div id="canvas" style="position:relative;width:1800px;height:1000px;background:var(--surface-1);border:2px solid #DCA63B;border-radius:12px;overflow:visible;transform-origin:0 0;">
-  <svg id="svg-lines" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></svg>
   <div id="cards"></div>
 </div>
 </div>
@@ -174,12 +184,77 @@ input[type="checkbox"] {
   </div>
 </div>
 
+<!-- Scan gear modal -->
+<div id="scan-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:999;align-items:center;justify-content:center;">
+  <div style="background:var(--surface-2);border:1px solid var(--border-strong);border-radius:12px;padding:24px 28px;width:360px;max-width:92vw;max-height:86vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.5);" onclick="event.stopPropagation()">
+    <div style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:4px;">Scan gear card</div>
+
+    <div id="scan-step-capture">
+      <div style="font-size:10px;color:var(--text-muted);margin:2px 0 14px;">Best-effort OCR from a photo of the item's screen in-game. Always double-check the fields before saving.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+        <button onclick="document.getElementById('scan-camera-input').click()" style="padding:14px 8px;display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11px;"><i class="ti ti-camera" style="font-size:20px;color:#378ADD;" aria-hidden="true"></i>Take Photo</button>
+        <button onclick="document.getElementById('scan-file-input').click()" style="padding:14px 8px;display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11px;"><i class="ti ti-photo-up" style="font-size:20px;color:#378ADD;" aria-hidden="true"></i>Choose Image</button>
+      </div>
+      <div id="scan-dropzone" style="border:1.5px dashed var(--border-strong);border-radius:8px;padding:16px;text-align:center;font-size:10px;color:var(--text-muted);margin-bottom:16px;">…or drop an image here</div>
+      <input type="file" id="scan-camera-input" accept="image/*" capture="environment" style="display:none;" onchange="handleScanInput(event)">
+      <input type="file" id="scan-file-input" accept="image/*" style="display:none;" onchange="handleScanInput(event)">
+    </div>
+
+    <div id="scan-step-loading" style="display:none;text-align:center;padding:30px 0;">
+      <i class="ti ti-loader-2" style="font-size:28px;color:#378ADD;display:inline-block;animation:spin 1s linear infinite;" aria-hidden="true"></i>
+      <div id="scan-progress-text" style="font-size:11px;color:var(--text-secondary);margin-top:10px;">Reading image…</div>
+    </div>
+
+    <div id="scan-step-review" style="display:none;">
+      <div style="display:flex;gap:8px;margin-bottom:10px;align-items:flex-start;">
+        <img id="scan-thumb" style="width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid var(--border);flex-shrink:0;" alt="Scanned photo">
+        <div style="font-size:9px;color:var(--text-muted);flex:1;">Check every field — OCR can misread small game text. Nothing is saved until you click Create / Update.</div>
+      </div>
+      <div style="margin-bottom:6px;">
+        <label style="font-size:9px;color:var(--text-muted);display:block;margin-bottom:2px;">Card</label>
+        <select id="scan-target" class="ef-in"></select>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 42px;gap:4px;margin-bottom:6px;">
+        <div><label style="font-size:9px;color:var(--text-muted);display:block;margin-bottom:2px;">Item name</label><input id="scan-name" type="text" class="ef-in"></div>
+        <div><label style="font-size:9px;color:var(--text-muted);display:block;margin-bottom:2px;">Lv</label><input id="scan-level" type="number" min="0" class="ef-in ta-c"></div>
+      </div>
+      <div style="margin-bottom:6px;">
+        <label style="font-size:9px;color:var(--text-muted);display:block;margin-bottom:2px;">Rarity</label>
+        <select id="scan-rarity" class="ef-in"></select>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:6px;">
+        <div><label style="font-size:9px;color:var(--text-muted);display:block;margin-bottom:2px;">⚔ DMG</label><input id="scan-damage" type="text" placeholder="e.g. 13.5m" class="ef-in ta-r"></div>
+        <div><label style="font-size:9px;color:var(--text-muted);display:block;margin-bottom:2px;">♥ HP</label><input id="scan-hp" type="text" placeholder="e.g. 7b" class="ef-in ta-r"></div>
+      </div>
+      <div style="font-size:10px;font-weight:500;color:var(--text-secondary);margin:8px 0 3px;">Substats</div>
+      <div style="display:grid;grid-template-columns:1fr 70px;gap:4px;margin-bottom:4px;">
+        <select id="scan-sub-0-key" class="ef-in"></select>
+        <input id="scan-sub-0-val" type="number" step="0.1" class="ef-in ta-r">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 70px;gap:4px;margin-bottom:10px;">
+        <select id="scan-sub-1-key" class="ef-in"></select>
+        <input id="scan-sub-1-val" type="number" step="0.1" class="ef-in ta-r">
+      </div>
+      <details style="margin-bottom:10px;">
+        <summary style="font-size:9px;color:var(--text-muted);cursor:pointer;">Raw OCR text</summary>
+        <pre id="scan-raw-text" style="font-size:9px;color:var(--text-muted);white-space:pre-wrap;max-height:80px;overflow:auto;margin:4px 0 0;"></pre>
+      </details>
+      <div style="display:flex;gap:6px;">
+        <button onclick="resetScanModal()" style="flex:1;padding:6px;font-size:11px;opacity:0.7;">Rescan</button>
+        <button onclick="applyScanResult()" style="flex:1;padding:6px;font-size:11px;background:#378ADD !important;border-color:#378ADD !important;font-weight:600;">Create / Update</button>
+      </div>
+    </div>
+
+    <button onclick="closeScanModal()" style="width:100%;padding:6px;font-size:11px;opacity:0.7;margin-top:10px;">Cancel</button>
+  </div>
+</div>
+
 <script>
 const SS=[
   // Per-roll caps from Forge Master wiki (Substats page)
   {k:'atkSpeed',    l:'Atk Speed',    max:40},
-  {k:'doubleChance',l:'Double Chance',max:20,  tgt:100, tl:'cap 100%'},
-  {k:'lifesteal',   l:'Lifesteal',    max:20,  tgt:40,  tl:'floor 40%'},
+  {k:'doubleChance',l:'Double Chance',max:20},
+  {k:'lifesteal',   l:'Lifesteal',    max:20},
   {k:'critChance',  l:'Crit Chance',  max:12},
   {k:'critDmg',     l:'Crit DMG',     max:80},
   {k:'dmg',         l:'DMG',          max:15},
@@ -191,7 +266,44 @@ const SS=[
   {k:'block',       l:'Block',        max:7},
   {k:'cooldown',    l:'Skill CD',     max:6},
 ];
-SS[0].tgt=100; SS[0].tl='target 100%';
+// Build archetypes (community guidance: Atk Speed 100%+, Lifesteal 40%+, Double Chance to its
+// 100% effectiveness cap; Crit and Skill are the recognised endgame variants).
+// capped:true = value beyond tgt is wasted (in-game effectiveness cap), flagged in the summary.
+const BUILD_MODES={
+  balanced:{label:'Balanced',targets:{
+    atkSpeed:{tgt:100,tl:'target 100%'},
+    doubleChance:{tgt:100,tl:'cap 100%',capped:true},
+    lifesteal:{tgt:40,tl:'floor 40%'},
+  }},
+  crit:{label:'Crit',targets:{
+    atkSpeed:{tgt:100,tl:'target 100%'},
+    doubleChance:{tgt:100,tl:'cap 100%',capped:true},
+    lifesteal:{tgt:40,tl:'floor 40%'},
+    critChance:{tgt:100,tl:'cap 100%',capped:true},
+  }},
+  skill:{label:'Skill',targets:{
+    atkSpeed:{tgt:100,tl:'target 100%'},
+    doubleChance:{tgt:100,tl:'cap 100%',capped:true},
+    lifesteal:{tgt:40,tl:'floor 40%'},
+    skillDmg:{tgt:100,tl:'target 100%'},
+    cooldown:{tgt:30,tl:'target 30%'},
+  }},
+};
+function applyBuildMode(){
+  const mode=BUILD_MODES[state.buildMode]?state.buildMode:'balanced';
+  const targets=BUILD_MODES[mode].targets;
+  SS.forEach(s=>{
+    const t=targets[s.k];
+    if(t){s.tgt=t.tgt;s.tl=t.tl;s.capped=!!t.capped;}
+    else{delete s.tgt;delete s.tl;s.capped=false;}
+  });
+}
+function setBuildMode(mode){
+  if(!BUILD_MODES[mode])return;
+  state.buildMode=mode;
+  applyBuildMode();
+  renderCards();queueSave();
+}
 const SUBSTAT_WIKI='https://forge-master.fandom.com/wiki/Substats';
 const CAP_NEAR_RATIO=0.9;
 const CAP_AT_EPS=0.25;
@@ -205,6 +317,19 @@ function rollCapStatus(value,statDef){
 }
 function capStatusColor(st){return st==='at'?'#2ACC97':st==='near'?'#DCA63B':null;}
 function capStatusLabel(st){return st==='at'?'MAX':st==='near'?'~CAP':'';}
+// Continuous fill color for the roll-cap progress bar — same thresholds as the MAX/~CAP badge,
+// but always resolves to a color (never null) so every active substat gets a visible bar.
+function capBarColor(st){return st==='at'?'#2ACC97':st==='near'?'#DCA63B':'#378ADD';}
+function capBarRow(value,statDef,opts={}){
+  if(!statDef) return '';
+  const ratio=Math.max(0,Math.min(1,value/statDef.max));
+  const st=rollCapStatus(value,statDef);
+  const col=capBarColor(st);
+  const pct=value>0?Math.max(3,Math.round(ratio*100)):0;
+  const idAttr=opts.id?` id="${opts.id}"`:'';
+  return `<div${idAttr} style="height:3px;background:var(--surface-0);border-radius:2px;overflow:hidden;margin-top:2px;" title="${fmtVal(value)}% of ${statDef.max}% roll cap">`+
+    `<div style="width:${pct}%;height:100%;background:${col};border-radius:2px;transition:width 0.15s,background 0.15s;"></div></div>`;
+}
 function cardRollCapLevel(e,d){
   if(!['gear','mount','pet','parked'].includes(e.type)) return null;
   ensureSlotVals(d);
@@ -240,21 +365,22 @@ const SK_TYPES=['Active','Passive','Ultimate'];
 const RARITY_RANK={
   '':-1,
   Common:0, Uncommon:1, Rare:2, Epic:3, Legendary:4, Ultimate:5, Mythic:6,
-  Space:7, Interstellar:8, Multiverse:9, Quantum:10
+  Space:7, Interstellar:8, Multiverse:9, Quantum:10, Divine:11
 };
 const RARITIES=Object.keys(RARITY_RANK).sort((a,b)=>RARITY_RANK[a]-RARITY_RANK[b]);
 
 const RARITY_COL={
   Space:'#E96B3E',
-  Interstellar:'#D946EF', 
-  Multiverse:'#7DD3FC',   
-  Quantum:'#5B3FA0',
-  Common:'#D1D5DB',       
+  Interstellar:'#D946EF',
+  Multiverse:'#7DD3FC',
+  Quantum:'#8B5CF6',
+  Divine:'#F5E7A3',
+  Common:'#D1D5DB',
   Uncommon:'#2ACC97',
   Rare:'#4FA3F7',
   Epic:'#968DF2',
   Legendary:'#FACC15',
-  Mythic:'#F05B5A',
+  Mythic:'#E64AC8',
   Ultimate:'#DC2626'
 };
 const COL={gear:'#968DF2',mount:'#2ACC97',pet:'#E96B3E',skills:'#DCA63B',techtree:'#2982D9',ascension:'#C497FE',parked:'#666666'};
@@ -288,6 +414,8 @@ function ascensionProgress(){
 const PET_NAME_ICON={
   'electry':'icons/pets/rabbit.png','serpent':'icons/pets/snake.png','cerberus':'icons/pets/dog.png',
   'enchanted elk':'icons/pets/deer.png','kitsune':'icons/pets/fox.png','treant':'icons/pets/treant.png',
+  // Mythic pets (no PNG art yet — Tabler icon fallbacks)
+  'genie':'ti-lamp','spectral tiger':'ti-cat','baby dragon':'ti-flame',
 };
 const MOUNT_NAME_ICON={
   'lily pad':'icons/mounts/lilypad1.png','lily leaf':'icons/mounts/lily-leaf.png','brown leaf':'icons/mounts/leaf.png',
@@ -359,8 +487,7 @@ let ENTS=[
   {id:'ascension',label:'Ascension',     type:'ascension',icon:'ti-stairs-up',   x:524, y:600, w:145,h:116},
 ];
 const SUM={x:403,y:567,w:Math.round(334*1.2),h:Math.round(200*1.2)};
-const CARD_W=145, CARD_H=100;
-function cardW(e,d){return e.w;}
+const CARD_W=145;
 
 const SEED={
   weapon:   {name:'Plasma Rifle',        level:81,  rarity:'Interstellar', slots:['doubleChance','healthRegen'], substats:{doubleChance:16.2, healthRegen:3.65}, damage:737e3},
@@ -477,8 +604,10 @@ function backfillSeed(){
   ENTS.forEach(e=>{
     const s=SEED[e.id];
     if(!s||!state[e.id]) return;
-    if(s.damage&&!state[e.id].damage) state[e.id].damage=s.damage;
-    if(s.hp&&!state[e.id].hp) state[e.id].hp=s.hp;
+    // only backfill records saved before these fields existed (undefined),
+    // never values the user deliberately zeroed out
+    if(s.damage&&state[e.id].damage==null) state[e.id].damage=s.damage;
+    if(s.hp&&state[e.id].hp==null) state[e.id].hp=s.hp;
     if(e.type==='skills'){
       if(state[e.id].slots&&state[e.id].slots.length>3) state[e.id].slots=state[e.id].slots.slice(0,3);
       if(s.slots){
@@ -544,6 +673,10 @@ async function loadDB(){
       const r=st.get('_charBonus');
       r.onsuccess=()=>{if(r.result)state.charBonus=r.result.data;res();};
       r.onerror=()=>res();
+    }),new Promise(res=>{
+      const r=st.get('_buildMode');
+      r.onsuccess=()=>{if(r.result)state.buildMode=r.result.data;res();};
+      r.onerror=()=>res();
     })]);
   }catch(err){db=null;}
 }
@@ -556,6 +689,7 @@ async function saveAll(){
   st.put({id:'_dynEnts',data:ENTS.filter(e=>e._dynamic)});
   st.put({id:'_deletedIds',data:state.deletedIds||[]});
   st.put({id:'_charBonus',data:state.charBonus||{damagePct:0,hpPct:0}});
+  st.put({id:'_buildMode',data:state.buildMode||'balanced'});
   await new Promise(res=>{tx.oncomplete=res;tx.onerror=res;});
   btn.innerHTML='<i class="ti ti-check" aria-hidden="true"></i> Saved';
   setTimeout(()=>{btn.innerHTML='<i class="ti ti-device-floppy" aria-hidden="true"></i> Save';},1500);
@@ -585,18 +719,8 @@ function parseBig(str){
   return m[2]?num*BIG_SUFFIX[m[2]]:num;
 }
 
-function entPos(e){
-  const p=state.positions&&state.positions[e.id];
-  return p?{x:p.x,y:p.y}:{x:e.x,y:e.y};
-}
-function sumPos(){
-  const p=state.positions&&state.positions['summary'];
-  return p?{x:p.x,y:p.y}:{x:SUM.x,y:SUM.y};
-}
-function drawLines(){
-  const sp=sumPos(),sc={x:sp.x+SUM.w/2,y:sp.y+SUM.h/2};
-  let h='';
-  document.getElementById('svg-lines').innerHTML=h;
+function esc(s){
+  return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 function totals(){
@@ -620,7 +744,7 @@ function totals(){
   return t;
 }
 
-function cardBody(e,d,isSel){
+function cardBody(e,d,isSel,buildTotals){
   if(isSel) return makeInlineEditor(e,d);
 
   if(e.type==='skills'){
@@ -628,7 +752,7 @@ function cardBody(e,d,isSel){
     const names=slots.filter(s=>s.name&&s.name.trim()).map(s=>{
       const sd=parseFloat(s.damage)||0,sh=parseFloat(s.hp)||0;
       const stats=(sd||sh)?` <span style="font-size:8px;color:var(--text-muted);">${sd?'⚔'+fmtBig(sd):''}${sd&&sh?' ':''}${sh?'♥'+fmtBig(sh):''}</span>`:'';
-      return `<div style="font-size:10px;color:var(--text-secondary);padding:1px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${s.name} <span style="font-weight:500;color:var(--text-primary);">Lv${s.level}</span>${stats}</div>`;
+      return `<div style="font-size:10px;color:var(--text-secondary);padding:1px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(s.name)} <span style="font-weight:500;color:var(--text-primary);">Lv${s.level}</span>${stats}</div>`;
     }).join('');
     const dmgV=parseFloat(d.damage)||0,hpV=parseFloat(d.hp)||0;
     const statsRow=(dmgV||hpV)?`<div style="display:flex;gap:8px;font-size:10px;color:var(--text-secondary);padding:1px 0;margin-bottom:2px;">${dmgV?`<span>⚔ <span style="font-weight:500;color:var(--text-primary);">${fmtBig(dmgV)}</span></span>`:''} ${hpV?`<span>♥ <span style="font-weight:500;color:var(--text-primary);">${fmtBig(hpV)}</span></span>`:''}</div>`:'';
@@ -666,7 +790,7 @@ function cardBody(e,d,isSel){
     return valB - valA;
   });
 
-  const t = ((d.status||'equipped')==='parked' && !isSel) ? totals() : null;
+  const t = ((d.status||'equipped')==='parked' && !isSel) ? buildTotals : null;
 
   const rows=sortedSlots.map(k=>{
     const s=SS.find(ss=>ss.k===k),v=parseFloat((d.substats||{})[k])||0;
@@ -679,9 +803,13 @@ function cardBody(e,d,isSel){
     const capSt=rollCapStatus(v,s);
     const capCol=capStatusColor(capSt);
     const valCol=capCol||(v>0?'var(--text-primary)':'var(--text-muted)');
-    const capHint=capSt?`<span style="font-size:7px;font-weight:700;color:${capCol};margin-left:3px;" title="Per-roll cap ${s.max}% (${SUBSTAT_WIKI})">${capStatusLabel(capSt)}</span>`:'';
+    const capHint=capSt?`<span style="font-size:8px;font-weight:700;color:${capCol};margin-left:3px;" title="Per-roll cap ${s.max}% (${SUBSTAT_WIKI})">${capStatusLabel(capSt)}</span>`:'';
     const valText=v>0?(k==='cooldown'?'-':'')+fmtVal(v)+'%'+capHint:'—';
-    return `<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-secondary);padding:1px 0;"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;">${s.l}${delta}</span><span style="font-weight:500;color:${valCol};flex-shrink:0;margin-left:4px;">${valText}</span></div>`;
+    const bar=v>0?capBarRow(v,s):'';
+    return `<div style="padding:1px 0;">
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-secondary);"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;">${s.l}${delta}</span><span style="font-weight:500;color:${valCol};flex-shrink:0;margin-left:4px;">${valText}</span></div>
+      ${bar}
+    </div>`;
   }).join('');
   return `<div style="padding:3px 9px 8px;">${rows}</div>`;
 }
@@ -701,29 +829,29 @@ function makeInlineEditor(e,d){
     const slots=d.slots||Array(3).fill(0).map(()=>({name:'',level:1,stype:'Active',damage:0,hp:0}));
     content=`
       <div style="margin-top:4px;display:grid;grid-template-columns:1fr 1fr;gap:4px;">
-        <div style="display:flex;align-items:center;gap:3px;">
+        <div class="in-row">
           <span style="font-size:10px;color:var(--text-muted);">⚔</span>
-          <input id="ef-skills-damage" type="text" placeholder="DMG (e.g. 13.5m)" value="${d.damage?fmtBig(d.damage):''}" onchange="updField('skills','damage',parseBig(this.value),this)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;text-align:right;">
+          <input id="ef-skills-damage" type="text" placeholder="DMG (e.g. 13.5m)" value="${d.damage?fmtBig(d.damage):''}" onchange="updField('skills','damage',parseBig(this.value),this)" class="ef-in ta-r">
         </div>
-        <div style="display:flex;align-items:center;gap:3px;">
+        <div class="in-row">
           <span style="font-size:10px;color:var(--text-muted);">♥</span>
-          <input id="ef-skills-hp" type="text" placeholder="HP (e.g. 7b)" value="${d.hp?fmtBig(d.hp):''}" onchange="updField('skills','hp',parseBig(this.value),this)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;text-align:right;">
+          <input id="ef-skills-hp" type="text" placeholder="HP (e.g. 7b)" value="${d.hp?fmtBig(d.hp):''}" onchange="updField('skills','hp',parseBig(this.value),this)" class="ef-in ta-r">
         </div>
       </div>
       <div style="font-size:10px;font-weight:500;color:var(--text-secondary);margin:6px 0 2px;">Equipped Skills</div>`
       +slots.map((sk,i)=>`<div style="margin:3px 0;">
         <div style="display:grid;grid-template-columns:1fr 42px;gap:4px;">
-          <input id="ef-skill-${i}-name" type="text" placeholder="Skill ${i+1}" value="${sk.name||''}" onchange="updSkill(${i},'name',this.value,this)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;">
-          <input id="ef-skill-${i}-level" type="number" value="${sk.level||''}" min="0" max="99" placeholder="Lv" onchange="updSkill(${i},'level',+this.value||0,this)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;text-align:center;">
+          <input id="ef-skill-${i}-name" type="text" placeholder="Skill ${i+1}" value="${esc(sk.name||'')}" onchange="updSkill(${i},'name',this.value,this)" class="ef-in">
+          <input id="ef-skill-${i}-level" type="number" value="${sk.level||''}" min="0" max="99" placeholder="Lv" onchange="updSkill(${i},'level',+this.value||0,this)" class="ef-in ta-c">
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:2px;">
-          <div style="display:flex;align-items:center;gap:3px;">
+          <div class="in-row">
             <span style="font-size:10px;color:var(--text-muted);">⚔</span>
-            <input id="ef-skill-${i}-damage" type="text" placeholder="DMG" value="${sk.damage?fmtBig(sk.damage):''}" onchange="updSkill(${i},'damage',parseBig(this.value),this)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;text-align:right;">
+            <input id="ef-skill-${i}-damage" type="text" placeholder="DMG" value="${sk.damage?fmtBig(sk.damage):''}" onchange="updSkill(${i},'damage',parseBig(this.value),this)" class="ef-in ta-r">
           </div>
-          <div style="display:flex;align-items:center;gap:3px;">
+          <div class="in-row">
             <span style="font-size:10px;color:var(--text-muted);">♥</span>
-            <input id="ef-skill-${i}-hp" type="text" placeholder="HP" value="${sk.hp?fmtBig(sk.hp):''}" onchange="updSkill(${i},'hp',parseBig(this.value),this)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;text-align:right;">
+            <input id="ef-skill-${i}-hp" type="text" placeholder="HP" value="${sk.hp?fmtBig(sk.hp):''}" onchange="updSkill(${i},'hp',parseBig(this.value),this)" class="ef-in ta-r">
           </div>
         </div>
       </div>`).join('');
@@ -744,7 +872,7 @@ function makeInlineEditor(e,d){
           ${infoIcon(`Req: ${p.reqLabel}. Keep: ${p.keep}. On reset: ${p.reset}`)}
         </div>
         <div style="display:grid;grid-template-columns:auto 1fr;gap:4px;align-items:center;">
-          <div style="display:flex;align-items:center;gap:3px;">
+          <div class="in-row">
             <input id="ef-ascension-${p.levelKey}" type="number" min="1" max="149" value="${d[p.levelKey]||1}" onchange="updField('ascension','${p.levelKey}',+this.value,this)" style="font-size:10px;padding:2px 3px;width:40px;box-sizing:border-box;text-align:center;">
             <span style="font-size:9px;color:${met?'#2ACC97':'var(--text-muted)'};white-space:nowrap;">/${pr.req}${met?' ✓':''}</span>
           </div>
@@ -760,13 +888,13 @@ function makeInlineEditor(e,d){
     content+=`<div style="font-size:10px;font-weight:500;color:var(--text-secondary);margin:8px 0 2px;">Character Level Bonus</div>
       <div style="font-size:9px;color:var(--text-muted);margin-bottom:4px;">Manual % from Forge Level (not derivable from checkboxes)</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;">
-        <div style="display:flex;align-items:center;gap:3px;">
+        <div class="in-row">
           <span style="font-size:10px;color:var(--text-muted);">⚔</span>
-          <input id="ef-charBonus-damagePct" type="number" step="0.1" min="0" placeholder="DMG %" value="${cb.damagePct||0}" onchange="updCharBonus('damagePct',+this.value,this)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;text-align:right;">
+          <input id="ef-charBonus-damagePct" type="number" step="0.1" min="0" placeholder="DMG %" value="${cb.damagePct||0}" onchange="updCharBonus('damagePct',+this.value,this)" class="ef-in ta-r">
         </div>
-        <div style="display:flex;align-items:center;gap:3px;">
+        <div class="in-row">
           <span style="font-size:10px;color:var(--text-muted);">♥</span>
-          <input id="ef-charBonus-hpPct" type="number" step="0.1" min="0" placeholder="HP %" value="${cb.hpPct||0}" onchange="updCharBonus('hpPct',+this.value,this)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;text-align:right;">
+          <input id="ef-charBonus-hpPct" type="number" step="0.1" min="0" placeholder="HP %" value="${cb.hpPct||0}" onchange="updCharBonus('hpPct',+this.value,this)" class="ef-in ta-r">
         </div>
       </div>`;
   } else {
@@ -782,16 +910,20 @@ function makeInlineEditor(e,d){
       const capSt=s?rollCapStatus(numV,s):null;
       const capCol=capStatusColor(capSt);
       const inputExtra=capSt?`border:1px solid ${capCol};background:${capSt==='at'?'rgba(42,204,151,0.08)':'rgba(220,166,59,0.08)'};`:'';
-      const capHint=capSt?`<span style="font-size:8px;font-weight:700;color:${capCol};" title="Roll cap ${s.max}%">${capStatusLabel(capSt)}</span>`:'<span style="font-size:9px;color:var(--text-muted);flex-shrink:0;">%</span>';
+      const capHint=capSt
+        ?`<span id="capbadge-${e.id}-${i}" style="font-size:8px;font-weight:700;color:${capCol};" title="Roll cap ${s.max}%">${capStatusLabel(capSt)}</span>`
+        :`<span id="capbadge-${e.id}-${i}" style="font-size:9px;color:var(--text-muted);flex-shrink:0;">%</span>`;
+      const bar=s?capBarRow(numV,s,{id:`capbar-${e.id}-${i}`}):'';
       return `<div style="margin:3px 0;">
         <select id="ef-${e.id}-slot-${i}" onchange="updSlot('${e.id}',${i},this.value,this)" style="font-size:9px;padding:2px 4px;width:100%;box-sizing:border-box;">
           <option value=""${!k?' selected':''}>— Substat —</option>
           ${ssOptions(k,taken)}
         </select>
-        <div style="display:flex;align-items:center;gap:3px;margin-top:2px;">
+        <div class="in-row" style="margin-top:2px;">
           <input type="number" step="0.1" value="${v||''}" placeholder="0" oninput="updStatVal('${e.id}',${i},+this.value)" id="ssval-${e.id}-${i}" style="font-size:10px;padding:2px 4px;text-align:right;width:50px;min-width:0;box-sizing:border-box;${inputExtra}"${k?'':' disabled'}>
           ${capHint}
         </div>
+        ${bar}
       </div>`;
     }).join('');
 
@@ -799,22 +931,22 @@ function makeInlineEditor(e,d){
 
     content=`
       <div style="margin-top:6px;display:grid;grid-template-columns:1fr 42px;gap:4px;">
-        <input id="ef-${e.id}-name" type="text" placeholder="Item Name" value="${d.name||''}" onchange="updField('${e.id}','name',this.value,this)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;">
-        <input id="ef-${e.id}-level" type="number" placeholder="Lv" value="${d.level||''}" min="0" onchange="updField('${e.id}','level',+this.value||0,this)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;text-align:center;">
+        <input id="ef-${e.id}-name" type="text" placeholder="Item Name" value="${esc(d.name||'')}" onchange="updField('${e.id}','name',this.value,this)" class="ef-in">
+        <input id="ef-${e.id}-level" type="number" placeholder="Lv" value="${d.level||''}" min="0" onchange="updField('${e.id}','level',+this.value||0,this)" class="ef-in ta-c">
       </div>
       <div style="margin-top:4px;">
-        <select id="ef-${e.id}-rarity" onchange="updField('${e.id}','rarity',this.value,this)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;">
-          ${rarList.map(r=>`<option value="${r}"${d.rarity===r?' selected':''}>${r||'— Rarity —'}</option>`).join('')}
+        <select id="ef-${e.id}-rarity" onchange="updField('${e.id}','rarity',this.value,this)" class="ef-in">
+          ${rarList.map(r=>`<option value="${esc(r)}"${d.rarity===r?' selected':''}>${esc(r)||'— Rarity —'}</option>`).join('')}
         </select>
       </div>
       <div style="margin-top:4px;display:grid;grid-template-columns:1fr 1fr;gap:4px;">
-        <div style="display:flex;align-items:center;gap:3px;">
+        <div class="in-row">
           <span style="font-size:10px;color:var(--text-muted);">⚔</span>
-          <input id="ef-${e.id}-damage" type="text" placeholder="DMG (e.g. 13.5m)" value="${d.damage?fmtBig(d.damage):''}" onchange="updField('${e.id}','damage',parseBig(this.value),this)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;text-align:right;">
+          <input id="ef-${e.id}-damage" type="text" placeholder="DMG (e.g. 13.5m)" value="${d.damage?fmtBig(d.damage):''}" onchange="updField('${e.id}','damage',parseBig(this.value),this)" class="ef-in ta-r">
         </div>
-        <div style="display:flex;align-items:center;gap:3px;">
+        <div class="in-row">
           <span style="font-size:10px;color:var(--text-muted);">♥</span>
-          <input id="ef-${e.id}-hp" type="text" placeholder="HP (e.g. 7b)" value="${d.hp?fmtBig(d.hp):''}" onchange="updField('${e.id}','hp',parseBig(this.value),this)" style="font-size:10px;padding:2px 4px;width:100%;box-sizing:border-box;text-align:right;">
+          <input id="ef-${e.id}-hp" type="text" placeholder="HP (e.g. 7b)" value="${d.hp?fmtBig(d.hp):''}" onchange="updField('${e.id}','hp',parseBig(this.value),this)" class="ef-in ta-r">
         </div>
       </div>
       <div style="font-size:10px;font-weight:500;color:var(--text-secondary);margin:6px 0 2px;">Substats</div>
@@ -866,8 +998,8 @@ function renderCards(){
     const isParked=(d.status||'equipped')==='parked';
     const statusFooter=isStatEnt&&!isSel
       ?(isParked
-        ?`<div onclick="event.stopPropagation();toggleStatus('${e.id}')" style="position:absolute;bottom:0;left:0;right:0;height:10px;background:#1e1e1e;display:flex;align-items:center;justify-content:center;cursor:pointer;"><span style="font-size:7px;letter-spacing:1px;font-weight:600;color:#666;">PARKED</span></div>`
-        :`<div onclick="event.stopPropagation();toggleStatus('${e.id}')" style="position:absolute;bottom:0;left:0;right:0;height:10px;background:#2ACC97;display:flex;align-items:center;justify-content:center;cursor:pointer;"><span style="font-size:7px;letter-spacing:1px;font-weight:600;color:#0f2a1a;">EQUIPPED</span></div>`)
+        ?`<div onclick="event.stopPropagation();toggleStatus('${e.id}')" style="position:absolute;bottom:0;left:0;right:0;height:10px;background:#1e1e1e;display:flex;align-items:center;justify-content:center;cursor:pointer;"><span style="font-size:8px;letter-spacing:1px;font-weight:600;color:#666;">PARKED</span></div>`
+        :`<div onclick="event.stopPropagation();toggleStatus('${e.id}')" style="position:absolute;bottom:0;left:0;right:0;height:10px;background:#2ACC97;display:flex;align-items:center;justify-content:center;cursor:pointer;"><span style="font-size:8px;letter-spacing:1px;font-weight:600;color:#0f2a1a;">EQUIPPED</span></div>`)
       :'';
     let subtitle='';
     if(e.type==='gear'&&d.name) subtitle=(d.level?lv.trim():'')+` · ${e.label}`;
@@ -887,22 +1019,22 @@ function renderCards(){
     }
 
     const pos=state.positions&&state.positions[e.id]?state.positions[e.id]:{x:e.x,y:e.y};
-    const renderW=cardW(e,d);
+    const renderW=e.w;
     const capLevel=isStatEnt?cardRollCapLevel(e,d):null;
     const capClass=capLevel?` cap-${capLevel==='at'?'at':'near'}`:'';
     const capRibbon=capLevel&&!isSel?capStatusLabel(capLevel):'';
-    h+=`<div class="ecard ${e.type}${isSel?' sel':''}${capClass}" data-eid="${e.id}" style="left:${pos.x}px;top:${pos.y}px;width:${renderW}px;height:${calcHeight}px;--theme-color:${tcol};${opacityStyle};cursor:pointer;" onmousedown="startDrag(event,'${e.id}')" onclick="cardClick(event,'${e.id}')">
-      <div class="etop" style="background:${tcol};"${capRibbon?` data-cap-label="${capRibbon}"`:''}>${d.rarity?`<span>${d.rarity}</span>`:''}</div>
+    h+=`<div class="ecard ${e.type}${isSel?' sel':''}${capClass}" data-eid="${e.id}" style="left:${pos.x}px;top:${pos.y}px;width:${renderW}px;height:${calcHeight}px;--theme-color:${tcol};${opacityStyle};cursor:pointer;" onpointerdown="startDrag(event,'${e.id}')" onclick="cardClick(event,'${e.id}')">
+      <div class="etop" style="background:${tcol};"${capRibbon?` data-cap-label="${capRibbon}"`:''}>${d.rarity?`<span>${esc(d.rarity)}</span>`:''}</div>
       <div style="padding:5px 9px 2px;display:flex;align-items:flex-start;gap:5px;position:relative;">
         ${renderIcon(itemIcon(e,d),tcol,e.icon)}
         <div style="overflow:hidden;min-width:0;flex:1;">
-          <div style="font-size:11px;font-weight:500;color:var(--text-primary);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.2;">${title}${!d.name&&e.type==='gear'&&lv?lv:''}</div>
+          <div style="font-size:11px;font-weight:500;color:var(--text-primary);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.2;">${esc(title)}${!d.name&&e.type==='gear'&&lv?lv:''}</div>
           ${subtitle?`<div style="font-size:9px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${subtitle}</div>`:''}
         </div>
-        ${(()=>{const dv=parseFloat(d.damage)||0,hv=parseFloat(d.hp)||0;return(dv||hv)?`<div style="display:flex;flex-direction:column;align-items:flex-end;font-size:7px;color:var(--text-muted);flex-shrink:0;line-height:1.3;">${dv?`<span>⚔${fmtBig(dv)}</span>`:''}${hv?`<span>♥${fmtBig(hv)}</span>`:''}</div>`:''})()}
+        ${(()=>{const dv=parseFloat(d.damage)||0,hv=parseFloat(d.hp)||0;return(dv||hv)?`<div style="display:flex;flex-direction:column;align-items:flex-end;font-size:8px;color:var(--text-muted);flex-shrink:0;line-height:1.3;">${dv?`<span>⚔${fmtBig(dv)}</span>`:''}${hv?`<span>♥${fmtBig(hv)}</span>`:''}</div>`:''})()}
         ${isSel?`<div style="display:flex;flex-direction:column;gap:2px;flex-shrink:0;"><button onclick="closeEdit(event)" style="font-size:11px;padding:0 5px;line-height:17px;border-radius:3px;opacity:0.7;" title="Close">×</button><button onclick="event.stopPropagation();dupEnt('${e.id}')" style="font-size:9px;padding:0 5px;line-height:17px;border-radius:3px;opacity:0.7;" title="Duplicate"><i class="ti ti-copy" aria-hidden="true"></i></button></div>`:''}
       </div>
-      ${cardBody(e,d,isSel)}
+      ${cardBody(e,d,isSel,t)}
       ${statusFooter}
     </div>`;
   });
@@ -914,12 +1046,17 @@ function renderCards(){
     const v=parseFloat(t[s.k])||0;
     const pct=Math.min(100,(v/s.tgt)*100);
     const met=v>=s.tgt;
+    const over=s.capped&&v>s.tgt?fmtVal(v-s.tgt):0;
     const bc=met?'#2ACC97':v>s.tgt*0.55?'#DCA63B':'#E96B3E';
+    const valCol=over?'#DCA63B':met?'#2ACC97':'var(--text-primary)';
+    const tailLabel=over
+      ?`<span style="font-size:10px;color:#DCA63B;text-align:right;" title="${over}% over the ${s.tgt}% effectiveness cap is wasted — reroll candidate">${over}% wasted</span>`
+      :`<span style="font-size:10px;color:var(--text-muted);text-align:right;">${s.tl}</span>`;
     return `<div style="display:grid;grid-template-columns:90px 1fr 48px 60px;gap:6px;align-items:center;padding:4px 0;border-bottom:0.5px solid var(--border);">
       <span style="font-size:11px;color:var(--text-secondary);">${s.l}</span>
       <div style="height:4px;background:var(--surface-0);border-radius:2px;overflow:hidden;"><div style="width:${pct}%;height:100%;background:${bc};border-radius:2px;transition:width 0.3s;"></div></div>
-      <span style="font-size:11px;font-weight:500;color:${met?'#2ACC97':'var(--text-primary)'};text-align:right;">${s.k==='cooldown'?'-':''}${fmtVal(v)}%</span>
-      <span style="font-size:10px;color:var(--text-muted);text-align:right;">${s.tl}</span>
+      <span style="font-size:11px;font-weight:500;color:${valCol};text-align:right;">${s.k==='cooldown'?'-':''}${fmtVal(v)}%</span>
+      ${tailLabel}
     </div>`;
   }).join('');
   const CHART_H=52;
@@ -930,14 +1067,14 @@ function renderCards(){
     const pct=Math.min(100,(v/globalMax)*100);
     const barH=Math.max(v>0?2:0,Math.round((pct/100)*CHART_H));
     const abbr=s.l.replace(' Chance','C').replace(' Speed','Spd').replace(' DMG','D').replace(' Regen','Rgn').replace('Ranged','Rng').replace('Melee','Mle').replace('Skill','Skl');
-    return `<div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:0;">
-      <span style="font-size:7px;font-weight:500;color:var(--text-primary);height:10px;">${v>0?(s.k==='cooldown'?'-':'')+fmtVal(v):''}</span>
+    return `<div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:0;" title="${s.l}${v>0?`: ${(s.k==='cooldown'?'-':'')+fmtVal(v)}%`:''}">
+      <span style="font-size:8px;font-weight:500;color:var(--text-primary);height:10px;">${v>0?(s.k==='cooldown'?'-':'')+fmtVal(v):''}</span>
       <div style="height:${CHART_H}px;display:flex;align-items:flex-end;width:100%;"><div style="width:100%;height:${barH}px;background:#378ADD;border-radius:2px 2px 0 0;transition:height 0.3s;"></div></div>
-      <span style="font-size:7px;color:var(--text-muted);text-align:center;line-height:1.1;margin-top:2px;">${abbr}</span>
+      <span style="font-size:8px;color:var(--text-muted);text-align:center;line-height:1.1;margin-top:2px;">${abbr}</span>
     </div>`;
   }).join('');
   const sumPos=state.positions&&state.positions["summary"]?state.positions["summary"]:{x:SUM.x,y:SUM.y};
-  h+=`<div class="ecard summary${isSumSel?' sel':''}" data-eid="summary" style="left:${sumPos.x}px;top:${sumPos.y}px;width:${SUM.w}px;cursor:pointer;" onmousedown="startDrag(event,'summary')" onclick="cardClick(event,'summary')">
+  h+=`<div class="ecard summary${isSumSel?' sel':''}" data-eid="summary" style="left:${sumPos.x}px;top:${sumPos.y}px;width:${SUM.w}px;cursor:pointer;" onpointerdown="startDrag(event,'summary')" onclick="cardClick(event,'summary')">
     <div class="etop" style="background:#378ADD;"></div>
     <div style="padding:6px 12px 4px;display:flex;align-items:center;justify-content:space-between;">
       <div style="display:flex;align-items:center;gap:5px;">
@@ -949,6 +1086,10 @@ function renderCards(){
         <span>♥ <span style="font-weight:600;color:var(--text-primary);">${fmtBig(t.hp)||'—'}</span></span>
       </div>
     </div>
+    <div style="display:flex;align-items:center;gap:4px;padding:0 12px 4px;">
+      <span style="font-size:9px;color:var(--text-muted);margin-right:2px;">Targets</span>
+      ${Object.entries(BUILD_MODES).map(([k,m])=>`<button onclick="event.stopPropagation();setBuildMode('${k}')" style="font-size:9px;padding:1px 8px;${(state.buildMode||'balanced')===k?'background:#378ADD !important;border-color:#378ADD !important;font-weight:600;':'opacity:0.55;'}" title="Switch summary targets to the ${m.label} build archetype">${m.label}</button>`).join('')}
+    </div>
     <div style="padding:0 12px 4px;">${mainRows}</div>
     <div style="padding:4px 8px 8px;">
       <div style="display:flex;gap:3px;">${chartArea}</div>
@@ -956,24 +1097,6 @@ function renderCards(){
   </div>`;
   document.getElementById('cards').innerHTML=h;
   restoreFocus();
-}
-
-function renderSummaryRows(){
-  const t=totals();let h='';
-  h+=`<div style="display:flex;gap:20px;padding:6px 0 8px;border-bottom:0.5px solid var(--border);margin-bottom:4px;">
-    <div style="font-size:12px;color:var(--text-secondary);">⚔ Total DMG <span style="font-weight:600;color:var(--text-primary);margin-left:4px;">${fmtBig(t.damage)}</span></div>
-    <div style="font-size:12px;color:var(--text-secondary);">♥ Total HP <span style="font-weight:600;color:var(--text-primary);margin-left:4px;">${fmtBig(t.hp)}</span></div>
-  </div>`;
-  SS.forEach(s=>{
-    const raw=t[s.k],v=fmtVal(raw),pct=s.tgt?Math.min(100,(raw/s.tgt)*100):Math.min(100,(raw/s.max)*50),met=s.tgt&&raw>=s.tgt,bc=met?'#2ACC97':s.tgt&&raw>s.tgt*0.55?'#DCA63B':'#378ADD';
-    h+=`<div style="display:grid;grid-template-columns:110px 1fr 56px ${s.tgt?'80px':'0'};gap:8px;align-items:center;padding:5px 0;border-bottom:0.5px solid var(--border);">
-      <span style="font-size:12px;color:var(--text-secondary);">${s.l}</span>
-      <div style="height:4px;background:var(--surface-0);border-radius:2px;overflow:hidden;"><div style="width:${pct}%;height:100%;background:${bc};border-radius:2px;transition:width 0.3s;"></div></div>
-      <span style="font-size:12px;font-weight:500;color:${met?'#2ACC97':'var(--text-primary)'};text-align:right;">${s.k==='cooldown'?'-':''}${v}%</span>
-      ${s.tgt?`<span style="font-size:10px;color:var(--text-muted);text-align:right;">${s.tl}</span>`:''}
-    </div>`;
-  });
-  document.getElementById('summary-rows').innerHTML=h;
 }
 
 function selEnt(id){
@@ -1024,6 +1147,49 @@ function updStatVal(id,slotIdx,val){
   d.slotVals[slotIdx]=isNaN(val)?0:val;
   syncSubstatsFromSlots(d);
   queueSave();
+  liveUpdateCapIndicators(id,slotIdx);
+}
+// Updates the cap bar/badge/input highlight in place as the user types,
+// instead of a full renderCards() which would blow away input focus/cursor.
+function liveUpdateCapIndicators(id,slotIdx){
+  const d=state[id];
+  const k=(d.activeSlots||[])[slotIdx];
+  const s=k?SS.find(x=>x.k===k):null;
+  if(!s) return;
+  const v=parseFloat((d.slotVals||[])[slotIdx])||0;
+  const st=rollCapStatus(v,s);
+  const barWrap=document.getElementById(`capbar-${id}-${slotIdx}`);
+  if(barWrap){
+    const ratio=Math.max(0,Math.min(1,v/s.max));
+    const pct=v>0?Math.max(3,Math.round(ratio*100)):0;
+    barWrap.title=`${fmtVal(v)}% of ${s.max}% roll cap`;
+    const fill=barWrap.firstElementChild;
+    if(fill){fill.style.width=pct+'%';fill.style.background=capBarColor(st);}
+  }
+  const badge=document.getElementById(`capbadge-${id}-${slotIdx}`);
+  if(badge){
+    if(st){
+      badge.textContent=capStatusLabel(st);
+      badge.style.color=capStatusColor(st);
+      badge.style.fontWeight='700';
+      badge.style.fontSize='8px';
+    }else{
+      badge.textContent='%';
+      badge.style.color='var(--text-muted)';
+      badge.style.fontWeight='';
+      badge.style.fontSize='9px';
+    }
+  }
+  const input=document.getElementById(`ssval-${id}-${slotIdx}`);
+  if(input){
+    if(st){
+      input.style.border=`1px solid ${capStatusColor(st)}`;
+      input.style.background=st==='at'?'rgba(42,204,151,0.08)':'rgba(220,166,59,0.08)';
+    }else{
+      input.style.border='';
+      input.style.background='';
+    }
+  }
 }
 
 function toggleStatus(id){
@@ -1058,8 +1224,6 @@ function updField(id,f,v,el){
       }
     }
   }
-  const entForClamp=ENTS.find(e=>e.id===id);
-  if(f==='status'&&entForClamp?.type==='mount') clampPositions();
   renderCards();
   queueSave();
 }
@@ -1197,6 +1361,251 @@ function createEnt(type){
   renderCards();saveAll();
 }
 
+// --- Scan Gear: OCR a photo of an in-game item card into a filled-in card ---
+// Loaded on demand (not in <head>) so the ~2MB OCR library never costs anyone who doesn't use it.
+let _tesseractLoadPromise=null, _scanImageDataUrl=null;
+function loadTesseract(){
+  if(window.Tesseract) return Promise.resolve();
+  if(_tesseractLoadPromise) return _tesseractLoadPromise;
+  _tesseractLoadPromise=new Promise((res,rej)=>{
+    const s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+    s.onload=()=>res();
+    s.onerror=()=>rej(new Error('Could not load the OCR library — check your connection and try again.'));
+    document.head.appendChild(s);
+  });
+  return _tesseractLoadPromise;
+}
+
+function openScanModal(){
+  resetScanModal();
+  const m=document.getElementById('scan-modal');
+  m.style.display='flex';
+  m.onclick=closeScanModal;
+}
+function closeScanModal(){
+  document.getElementById('scan-modal').style.display='none';
+}
+function resetScanModal(){
+  document.getElementById('scan-step-capture').style.display='block';
+  document.getElementById('scan-step-loading').style.display='none';
+  document.getElementById('scan-step-review').style.display='none';
+  document.getElementById('scan-camera-input').value='';
+  document.getElementById('scan-file-input').value='';
+  _scanImageDataUrl=null;
+  const m=document.getElementById('scan-modal');
+  if(m.style.display!=='flex'){m.style.display='flex';m.onclick=closeScanModal;}
+}
+
+function handleScanInput(ev){
+  const file=ev.target.files&&ev.target.files[0];
+  if(file) processScanFile(file);
+}
+
+function fileToDataURL(file){
+  return new Promise((res,rej)=>{
+    const r=new FileReader();
+    r.onload=()=>res(r.result);
+    r.onerror=rej;
+    r.readAsDataURL(file);
+  });
+}
+
+async function processScanFile(file){
+  if(!file.type||!file.type.startsWith('image/')){alert('Please provide an image file.');return;}
+  const m=document.getElementById('scan-modal');
+  if(m.style.display!=='flex'){m.style.display='flex';m.onclick=closeScanModal;}
+  document.getElementById('scan-step-capture').style.display='none';
+  document.getElementById('scan-step-review').style.display='none';
+  document.getElementById('scan-step-loading').style.display='block';
+  const progText=document.getElementById('scan-progress-text');
+  progText.textContent='Loading OCR engine…';
+  let worker=null;
+  try{
+    _scanImageDataUrl=await fileToDataURL(file);
+    await loadTesseract();
+    progText.textContent='Reading image…';
+    worker=await Tesseract.createWorker('eng',1,{
+      logger:info=>{
+        if(info.status==='recognizing text') progText.textContent=`Reading image… ${Math.round((info.progress||0)*100)}%`;
+      }
+    });
+    const {data}=await worker.recognize(_scanImageDataUrl);
+    showScanReview(parseGearOCR(data.text||''));
+  }catch(err){
+    alert('Could not read that image: '+(err&&err.message?err.message:err));
+    resetScanModal();
+  }finally{
+    if(worker) worker.terminate();
+  }
+}
+
+// Most-specific alias checked first so e.g. "Ranged DMG" claims its line before generic "DMG" does.
+const SS_ALIASES={
+  healthRegen:['health regen','hp regen','health regeneration'],
+  rangedDmg:['ranged dmg','ranged damage'],
+  meleeDmg:['melee dmg','melee damage'],
+  skillDmg:['skill dmg','skill damage'],
+  critDmg:['crit dmg','crit damage','critical damage','critical dmg'],
+  critChance:['crit chance','critical chance'],
+  doubleChance:['double chance','double dmg chance','double attack chance'],
+  atkSpeed:['atk speed','attack speed','atk spd'],
+  lifesteal:['lifesteal','life steal'],
+  cooldown:['skill cd','skill cooldown','cooldown'],
+  block:['block'],
+  health:['health','hp'],
+  dmg:['dmg','damage'],
+};
+const SS_PRIORITY=Object.keys(SS_ALIASES);
+
+function parseGearOCR(rawText){
+  const lines=rawText.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  const lower=rawText.toLowerCase();
+  const result={name:'',level:0,rarity:'',substats:[],damage:0,hp:0,rawText};
+
+  const lvMatch=rawText.match(/\blv\.?\s*(\d{1,4})\b/i)||rawText.match(/\blevel\s*[:\-]?\s*(\d{1,4})\b/i);
+  if(lvMatch) result.level=parseInt(lvMatch[1],10)||0;
+
+  let rarityIdx=Infinity;
+  RARITIES.filter(Boolean).forEach(r=>{
+    const idx=lower.indexOf(r.toLowerCase());
+    if(idx!==-1&&idx<rarityIdx){rarityIdx=idx;result.rarity=r;}
+  });
+
+  const claimedLines=new Set();
+  const found=[];
+  lines.forEach((line,idx)=>{
+    const ll=line.toLowerCase();
+    for(const key of SS_PRIORITY){
+      const hit=SS_ALIASES[key].some(a=>ll.includes(a));
+      if(!hit) continue;
+      const numMatch=line.match(/([+-]?\d+(?:\.\d+)?)\s*%/);
+      if(!numMatch) continue;
+      found.push({key,val:parseFloat(numMatch[1]),idx});
+      claimedLines.add(idx);
+      break;
+    }
+  });
+  found.sort((a,b)=>a.idx-b.idx);
+  result.substats=found.slice(0,2).map(f=>({key:f.key,val:f.val}));
+
+  // flat DMG/HP numbers: prefer a keyword on the same line ("HP 8.03M" / "DMG 1.45M"),
+  // fall back to first-seen/second-seen order only for numbers with no keyword hint
+  const bigNums=[];
+  lines.forEach((line,idx)=>{
+    if(claimedLines.has(idx)) return;
+    const m=line.match(/(\d+(?:\.\d+)?)\s*([kmb])\b/i);
+    if(!m) return;
+    const val=parseFloat(m[1])*(BIG_SUFFIX[m[2].toLowerCase()]||1);
+    const ll=line.toLowerCase();
+    let hint=null;
+    if(/\bhp\b|health/.test(ll)) hint='hp';
+    else if(/\bdmg\b|damage|\batk\b|power/.test(ll)) hint='damage';
+    bigNums.push({val,hint});
+  });
+  const hinted={damage:null,hp:null};
+  const unhinted=[];
+  bigNums.forEach(b=>{
+    if(b.hint&&hinted[b.hint]==null) hinted[b.hint]=b.val;
+    else unhinted.push(b.val);
+  });
+  if(hinted.damage==null&&unhinted.length) hinted.damage=unhinted.shift();
+  if(hinted.hp==null&&unhinted.length) hinted.hp=unhinted.shift();
+  result.damage=hinted.damage||0;
+  result.hp=hinted.hp||0;
+
+  for(const line of lines){
+    const ll=line.toLowerCase();
+    if(RARITIES.filter(Boolean).some(r=>ll.includes(r.toLowerCase()))) continue;
+    if(/\blv\.?\s*\d/.test(ll)||/\blevel\b/.test(ll)) continue;
+    if(/%/.test(line)) continue;
+    if(/^[\d\s.,kmb%⚔♥+\-]+$/i.test(line)) continue;
+    if(line.length<2) continue;
+    result.name=line;
+    break;
+  }
+
+  return result;
+}
+
+function scanTargetOptions(){
+  const existingGear=ENTS.filter(e=>e.type==='gear');
+  const existingOpts=existingGear.map(e=>{
+    const nm=state[e.id]&&state[e.id].name;
+    return `<option value="${e.id}">${esc(e.label)}${nm?': '+esc(nm):''}</option>`;
+  }).join('');
+  const newOpts=GEAR_PARTS.map(p=>`<option value="new:${p.k}">New ${esc(p.label)} card</option>`).join('');
+  return `<optgroup label="Update existing gear">${existingOpts}</optgroup><optgroup label="Create new">${newOpts}</optgroup>`;
+}
+
+function showScanReview(parsed){
+  document.getElementById('scan-step-loading').style.display='none';
+  document.getElementById('scan-step-review').style.display='block';
+  document.getElementById('scan-thumb').src=_scanImageDataUrl||'';
+  document.getElementById('scan-raw-text').textContent=parsed.rawText.trim()||'(no text recognized)';
+
+  document.getElementById('scan-target').innerHTML=scanTargetOptions();
+  document.getElementById('scan-name').value=parsed.name||'';
+  document.getElementById('scan-level').value=parsed.level||'';
+
+  document.getElementById('scan-rarity').innerHTML=RARITIES.map(r=>
+    `<option value="${esc(r)}"${parsed.rarity===r?' selected':''}>${esc(r)||'— Rarity —'}</option>`
+  ).join('');
+
+  document.getElementById('scan-damage').value=parsed.damage?fmtBig(parsed.damage):'';
+  document.getElementById('scan-hp').value=parsed.hp?fmtBig(parsed.hp):'';
+
+  const subKeyOptions=i=>{
+    const cur=(parsed.substats[i]||{}).key||'';
+    return `<option value=""${!cur?' selected':''}>— Substat —</option>`+
+      SS.map(s=>`<option value="${s.k}"${s.k===cur?' selected':''}>${s.l}</option>`).join('');
+  };
+  document.getElementById('scan-sub-0-key').innerHTML=subKeyOptions(0);
+  document.getElementById('scan-sub-1-key').innerHTML=subKeyOptions(1);
+  document.getElementById('scan-sub-0-val').value=(parsed.substats[0]&&parsed.substats[0].val)||'';
+  document.getElementById('scan-sub-1-val').value=(parsed.substats[1]&&parsed.substats[1].val)||'';
+}
+
+function applyScanResult(){
+  const targetVal=document.getElementById('scan-target').value;
+  let id;
+  if(targetVal.startsWith('new:')){
+    const part=GEAR_PARTS.find(p=>p.k===targetVal.slice(4));
+    if(!part){alert('Pick a card to update or create.');return;}
+    const canvas=document.getElementById('canvas');
+    const cW=canvas?canvas.clientWidth:800, cH=canvas?canvas.clientHeight:600;
+    id='gear_'+Date.now();
+    const w=145,h=100;
+    ENTS.push({id,label:part.label,type:'gear',icon:part.icon,slotIcon:part.slotIcon,x:Math.round(cW/2-w/2),y:Math.round(cH/2-h/2),w,h,_dynamic:true});
+    state[id]=defData(id);
+    if(!state.positions)state.positions={};
+    state.positions[id]={x:Math.round(cW/2-w/2),y:Math.round(cH/2-h/2)};
+  }else{
+    id=targetVal;
+    if(!id||!state[id]){alert('Pick a card to update or create.');return;}
+  }
+
+  const d=state[id];
+  d.name=document.getElementById('scan-name').value.trim();
+  d.level=parseInt(document.getElementById('scan-level').value,10)||0;
+  d.rarity=document.getElementById('scan-rarity').value;
+  d.damage=parseBig(document.getElementById('scan-damage').value);
+  d.hp=parseBig(document.getElementById('scan-hp').value);
+
+  const k0=document.getElementById('scan-sub-0-key').value;
+  const k1raw=document.getElementById('scan-sub-1-key').value;
+  const k1=k1raw===k0?'':k1raw;
+  d.activeSlots=[k0,k1];
+  d.slotVals=[parseFloat(document.getElementById('scan-sub-0-val').value)||0, k1?parseFloat(document.getElementById('scan-sub-1-val').value)||0:0];
+  ensureSlotVals(d);
+  syncSubstatsFromSlots(d);
+
+  selId=id;
+  renderCards();
+  saveAll();
+  closeScanModal();
+}
+
 function dupEnt(srcId){
   const srcEnt=ENTS.find(e=>e.id===srcId);
   if(!srcEnt) return;
@@ -1204,8 +1613,7 @@ function dupEnt(srcId){
   const srcPos=(state.positions&&state.positions[srcId])||{x:srcEnt.x,y:srcEnt.y};
   const canvas=document.getElementById('canvas');
   const cW=canvas?canvas.clientWidth:1800;
-  const srcW=cardW(srcEnt,state[srcId]);
-  let newX=snap(srcPos.x+srcW+8), newY=snap(srcPos.y);
+  let newX=snap(srcPos.x+srcEnt.w+8), newY=snap(srcPos.y);
   if(newX+CARD_W>cW-10){newX=snap(srcPos.x);newY=snap(srcPos.y+srcEnt.h+8);}
   const newEnt={id:newId,label:srcEnt.label,type:srcEnt.type,icon:srcEnt.icon,x:newX,y:newY,w:CARD_W,h:srcEnt.h,_dynamic:true};
   ENTS.push(newEnt);
@@ -1216,9 +1624,16 @@ function dupEnt(srcId){
   renderCards();saveAll();
 }
 
+let _lastDeleted=null,_undoTimer=null;
 function deleteEnt(id){
   const ent=ENTS.find(e=>e.id===id);
   if(ent){
+    _lastDeleted={
+      ent:JSON.parse(JSON.stringify(ent)),
+      data:state[id]?JSON.parse(JSON.stringify(state[id])):null,
+      pos:state.positions&&state.positions[id]?{...state.positions[id]}:null,
+      wasBuiltIn:!ent._dynamic
+    };
     // remove the card entirely, whether it's a built-in slot or a dynamically created one
     ENTS=ENTS.filter(e=>e.id!==id);
     delete state[id];
@@ -1227,27 +1642,41 @@ function deleteEnt(id){
       if(!state.deletedIds) state.deletedIds=[];
       if(!state.deletedIds.includes(id)) state.deletedIds.push(id);
     }
+    showUndo();
   }
   selId=null;
   renderCards();saveAll();
 }
-
-function swapEnts(id1){
-  const id2 = document.getElementById('swap-' + id1).value;
-  if(!id2 || id1 === id2) return;
-  
-  // Deep copy states to swap cleanly
-  const temp = JSON.parse(JSON.stringify(state[id1]));
-  state[id1] = JSON.parse(JSON.stringify(state[id2]));
-  state[id2] = temp;
-  
-  renderCards();
-  
-  saveAll();
+function showUndo(){
+  const el=document.getElementById('undo-btn');
+  if(!el)return;
+  el.style.display='inline-block';
+  clearTimeout(_undoTimer);
+  _undoTimer=setTimeout(hideUndo,10000);
+}
+function hideUndo(){
+  const el=document.getElementById('undo-btn');
+  if(el)el.style.display='none';
+  _lastDeleted=null;
+}
+function undoDelete(){
+  if(!_lastDeleted)return;
+  const {ent,data,pos,wasBuiltIn}=_lastDeleted;
+  if(!ENTS.find(e=>e.id===ent.id)) ENTS.push(ent);
+  state[ent.id]=data||defData(ent.id);
+  if(pos){if(!state.positions)state.positions={};state.positions[ent.id]=pos;}
+  if(wasBuiltIn&&state.deletedIds) state.deletedIds=state.deletedIds.filter(x=>x!==ent.id);
+  hideUndo();
+  renderCards();saveAll();
 }
 
 function exportJSON(){
-  const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+  const payload={
+    formatVersion:2,
+    dynEnts:ENTS.filter(e=>e._dynamic),
+    state
+  };
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
   a.download=`forge-master-build-${new Date().toISOString().slice(0,10)}.json`;
@@ -1259,13 +1688,37 @@ function importJSON(ev){
   reader.onload=function(){
     try{
       const imported=JSON.parse(reader.result);
-      ENTS.forEach(e=>{if(imported[e.id])state[e.id]=imported[e.id];});
-      if(imported.positions) state.positions=imported.positions;
+      // v2 envelope carries dynamic card definitions; v1 files are the bare state object
+      const isV2=imported&&imported.formatVersion>=2&&imported.state;
+      const src=isV2?imported.state:imported;
+      if(isV2&&Array.isArray(imported.dynEnts)){
+        imported.dynEnts.forEach(def=>{if(!ENTS.find(x=>x.id===def.id))ENTS.push(def);});
+      }
+      if(Array.isArray(src.deletedIds)){
+        state.deletedIds=src.deletedIds;
+        const delSet=new Set(src.deletedIds);
+        ENTS=ENTS.filter(e=>!delSet.has(e.id));
+      }
+      ENTS.forEach(e=>{if(src[e.id])state[e.id]=src[e.id];});
+      if(src.positions) state.positions=src.positions;
+      if(src.charBonus) state.charBonus=src.charBonus;
       renderCards();saveAll();
     }catch(err){alert('Invalid JSON file');}
   };
   reader.readAsText(file);
   ev.target.value='';
+}
+
+async function resetBoard(){
+  if(!confirm('Reset the whole board? This permanently clears all saved cards, positions and settings and restores the seed data.'))return;
+  try{
+    if(db){db.close();db=null;}
+    await new Promise(res=>{
+      const r=indexedDB.deleteDatabase('forge-master-v9');
+      r.onsuccess=res;r.onerror=res;r.onblocked=res;
+    });
+  }catch(e){}
+  location.reload();
 }
 
 document.addEventListener('click',function(e){
@@ -1276,7 +1729,7 @@ document.addEventListener('click',function(e){
   if(db) saveAll();
 });
 document.addEventListener('keydown',function(e){
-  if(e.key==='Escape'&&selId){selId=null;renderCards();return;}
+  if(e.key==='Escape'&&selId){flushEditorValues();selId=null;renderCards();if(db)saveAll();return;}
   if(e.key!=='Tab'||!selId)return;
   const card=document.querySelector('.ecard.sel');
   const cur=document.activeElement;
@@ -1305,16 +1758,17 @@ function snap(v){return Math.round(v/GRID)*GRID;}
 
 let _drag=null, _dragMoved=false;
 function startDrag(ev,id){
-  if(ev.button!==0)return;
+  if(ev.pointerType==='mouse'&&ev.button!==0)return;
   if(ev.target.closest('input,select,textarea,button,label.tcheck'))return;
   const e=ENTS.find(e=>e.id===id);
   const defPos=e?{x:e.x,y:e.y}:(id==='summary'?{x:SUM.x,y:SUM.y}:{x:0,y:0});
   const cur=(state.positions&&state.positions[id])||defPos;
   _drag={id,startX:ev.clientX,startY:ev.clientY,origX:cur.x,origY:cur.y,moved:false};
 }
-document.addEventListener('mousemove',function(ev){
+document.addEventListener('pointermove',function(ev){
   if(!_drag)return;
-  const dx=ev.clientX-_drag.startX,dy=ev.clientY-_drag.startY;
+  // drag deltas are in screen px; divide by zoom so the card tracks the pointer 1:1
+  const dx=(ev.clientX-_drag.startX)/_zoom,dy=(ev.clientY-_drag.startY)/_zoom;
   if(!_drag.moved&&Math.abs(dx)<5&&Math.abs(dy)<5)return;
   _drag.moved=true;
   const newX=snap(Math.max(0,_drag.origX+dx)),newY=snap(Math.max(0,_drag.origY+dy));
@@ -1323,22 +1777,24 @@ document.addEventListener('mousemove',function(ev){
   if(!state.positions)state.positions={};
   state.positions[_drag.id]={x:newX,y:newY};
 });
-document.addEventListener('mouseup',function(ev){
+function endDrag(ev){
   if(!_drag)return;
   if(_drag.moved){
     if(!state.positions)state.positions={};
     state.positions[_drag.id]={
-      x:snap(Math.max(0,_drag.origX+(ev.clientX-_drag.startX))),
-      y:snap(Math.max(0,_drag.origY+(ev.clientY-_drag.startY)))
+      x:snap(Math.max(0,_drag.origX+(ev.clientX-_drag.startX)/_zoom)),
+      y:snap(Math.max(0,_drag.origY+(ev.clientY-_drag.startY)/_zoom))
     };
     _dragMoved=true;
     _drag=null;
-    drawLines();queueSave();
+    queueSave();
   } else {
     _drag=null;
     // cardClick on the card will fire next and handle selection
   }
-});
+}
+document.addEventListener('pointerup',endDrag);
+document.addEventListener('pointercancel',endDrag);
 function autoLayout(){
   const canvas=document.getElementById('canvas');
   if(!canvas)return;
@@ -1389,7 +1845,7 @@ function autoLayout(){
     y:Math.round(cH/2-SUM.h/2)
   };
 
-  clampPositions();renderCards();drawLines();queueSave();
+  clampPositions();renderCards();queueSave();
 }
 
 function clampPositions(){
@@ -1399,8 +1855,7 @@ function clampPositions(){
   ENTS.forEach(e=>{
     const p=state.positions[e.id];
     if(!p)return;
-    const w=cardW(e,state[e.id]);
-    p.x=Math.max(pad,Math.min(p.x,cW-w-pad));
+    p.x=Math.max(pad,Math.min(p.x,cW-e.w-pad));
     p.y=Math.max(pad,Math.min(p.y,cH-e.h-pad));
   });
   const sp=state.positions['summary'];
@@ -1430,8 +1885,7 @@ function snapToGrid(){
   const pinned=new Set(['skills','techtree','summary']);
   const gridItems=ENTS.filter(e=>!pinned.has(e.id)).map(e=>{
     const pos=(state.positions&&state.positions[e.id])||{x:e.x,y:e.y};
-    const ent=ENTS.find(x=>x.id===e.id);
-    return {id:e.id,x:pos.x,y:pos.y,cols:Math.max(1,Math.round(cardW(ent,state[e.id])/cellW))};
+    return {id:e.id,x:pos.x,y:pos.y,cols:Math.max(1,Math.round(e.w/cellW))};
   });
   gridItems.sort((a,b)=>{
     const ar=Math.round((a.y-pad)/cellH),br=Math.round((b.y-pad)/cellH);
@@ -1480,7 +1934,7 @@ function snapToGrid(){
   newPos['summary']={x:pad+sc2*cellW,y:pad+sr*cellH};
 
   state.positions={...(state.positions||{}),...newPos};
-  clampPositions();renderCards();drawLines();queueSave();
+  clampPositions();renderCards();queueSave();
 }
 
 function layoutCleanup(){
@@ -1489,9 +1943,10 @@ function layoutCleanup(){
 
 const CANVAS_W=1800, CANVAS_H=1000;
 let _resizeTimer;
-window.addEventListener('resize',()=>{clearTimeout(_resizeTimer);_resizeTimer=setTimeout(()=>{clampPositions();renderCards();drawLines();fitToScreen();},150);});
+window.addEventListener('resize',()=>{clearTimeout(_resizeTimer);_resizeTimer=setTimeout(()=>{clampPositions();renderCards();if(!_userZoomed)fitToScreen();},150);});
 
 let _zoom=1,_panX=0,_panY=0,_panning=false,_panStartX=0,_panStartY=0,_panOrigX=0,_panOrigY=0;
+let _userZoomed=false; // manual zoom/pan suppresses auto-fit on window resize
 function applyZoomPan(){
   document.getElementById('canvas').style.transform=`translate(${_panX}px,${_panY}px) scale(${_zoom})`;
 }
@@ -1504,30 +1959,66 @@ function fitToScreen(){
   _zoom=Math.min(2,Math.max(0.3,scale));
   _panX=Math.max(0,(wrapW-CANVAS_W*_zoom)/2);
   _panY=Math.max(0,(wrapH-CANVAS_H*_zoom)/2);
+  _userZoomed=false;
   applyZoomPan();
 }
 const _wrap=document.getElementById('canvas-wrap');
 _wrap.addEventListener('wheel',function(e){
   e.preventDefault();
   const delta=e.deltaY>0?-0.05:0.05;
-  _zoom=Math.min(2,Math.max(0.3,_zoom+delta));
-  if(_zoom===1){_panX=0;_panY=0;}
+  const newZoom=Math.min(2,Math.max(0.3,_zoom+delta));
+  if(newZoom!==_zoom){
+    // anchor the zoom on the cursor: keep the canvas point under it stationary
+    const rect=_wrap.getBoundingClientRect();
+    const mx=e.clientX-rect.left,my=e.clientY-rect.top;
+    _panX=mx-(mx-_panX)*(newZoom/_zoom);
+    _panY=my-(my-_panY)*(newZoom/_zoom);
+    _zoom=newZoom;
+    _userZoomed=true;
+  }
   applyZoomPan();
 },{passive:false});
-_wrap.addEventListener('mousedown',function(e){
-  if(e.target.closest('.ecard')||e.button!==0) return;
+_wrap.addEventListener('pointerdown',function(e){
+  if(e.target.closest('.ecard')||(e.pointerType==='mouse'&&e.button!==0)) return;
   _panning=true;_panStartX=e.clientX;_panStartY=e.clientY;_panOrigX=_panX;_panOrigY=_panY;
   _wrap.style.cursor='grabbing';
   e.preventDefault();
 });
-window.addEventListener('mousemove',function(e){
+window.addEventListener('pointermove',function(e){
   if(!_panning) return;
   _panX=_panOrigX+(e.clientX-_panStartX);
   _panY=_panOrigY+(e.clientY-_panStartY);
+  _userZoomed=true;
   applyZoomPan();
 });
-window.addEventListener('mouseup',function(){
+function endPan(){
   if(_panning){_panning=false;_wrap.style.cursor='';}
+}
+window.addEventListener('pointerup',endPan);
+window.addEventListener('pointercancel',endPan);
+
+// Drop an image of a gear card anywhere on the board to scan it (mirrors the Scan Gear button).
+// Global dragover/drop prevention stops the browser from navigating to the image if the drop misses.
+window.addEventListener('dragover',e=>e.preventDefault());
+window.addEventListener('drop',e=>{if(!e.target.closest('#canvas-wrap, #scan-dropzone'))e.preventDefault();});
+_wrap.addEventListener('dragover',function(e){
+  if(e.dataTransfer&&[...e.dataTransfer.types].includes('Files')){e.preventDefault();_wrap.style.outline='2px dashed #378ADD';}
+});
+_wrap.addEventListener('dragleave',function(){_wrap.style.outline='';});
+_wrap.addEventListener('drop',function(e){
+  e.preventDefault();
+  _wrap.style.outline='';
+  const file=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0];
+  if(file&&file.type&&file.type.startsWith('image/')) processScanFile(file);
+});
+const _scanDropzone=document.getElementById('scan-dropzone');
+_scanDropzone.addEventListener('dragover',function(e){e.preventDefault();_scanDropzone.style.borderColor='#378ADD';});
+_scanDropzone.addEventListener('dragleave',function(){_scanDropzone.style.borderColor='';});
+_scanDropzone.addEventListener('drop',function(e){
+  e.preventDefault();
+  _scanDropzone.style.borderColor='';
+  const file=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0];
+  if(file) processScanFile(file);
 });
 
 function backfillAscension(){
@@ -1546,9 +2037,9 @@ function migrateSlotVals(){
 }
 
 async function init(){
-  initState();await loadDB();migrateSlotVals();backfillSeed();backfillAscension();
+  initState();await loadDB();migrateSlotVals();backfillSeed();backfillAscension();applyBuildMode();
   if(state.positions&&Object.keys(state.positions).length){
-    clampPositions();renderCards();drawLines();
+    clampPositions();renderCards();
   }else{
     autoLayout();
   }
