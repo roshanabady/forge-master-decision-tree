@@ -192,12 +192,21 @@ input[type="checkbox"] {
     <div id="scan-step-capture">
       <div style="font-size:10px;color:var(--text-muted);margin:2px 0 14px;">Best-effort OCR from a photo of the item's screen in-game. Always double-check the fields before saving.</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
-        <button onclick="document.getElementById('scan-camera-input').click()" style="padding:14px 8px;display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11px;"><i class="ti ti-camera" style="font-size:20px;color:#378ADD;" aria-hidden="true"></i>Take Photo</button>
+        <button onclick="takePhoto()" style="padding:14px 8px;display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11px;"><i class="ti ti-camera" style="font-size:20px;color:#378ADD;" aria-hidden="true"></i>Take Photo</button>
         <button onclick="document.getElementById('scan-file-input').click()" style="padding:14px 8px;display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11px;"><i class="ti ti-photo-up" style="font-size:20px;color:#378ADD;" aria-hidden="true"></i>Choose Image</button>
       </div>
       <div id="scan-dropzone" style="border:1.5px dashed var(--border-strong);border-radius:8px;padding:16px;text-align:center;font-size:10px;color:var(--text-muted);margin-bottom:16px;">…or drop an image here</div>
       <input type="file" id="scan-camera-input" accept="image/*" capture="environment" style="display:none;" onchange="handleScanInput(event)">
       <input type="file" id="scan-file-input" accept="image/*" style="display:none;" onchange="handleScanInput(event)">
+    </div>
+
+    <div id="scan-step-camera" style="display:none;">
+      <div style="font-size:10px;color:var(--text-muted);margin:2px 0 10px;">Line the item card up in the frame, then capture.</div>
+      <video id="scan-video" autoplay playsinline muted style="width:100%;border-radius:8px;background:#000;display:block;"></video>
+      <div style="display:flex;gap:6px;margin-top:10px;">
+        <button onclick="cancelCamera()" style="flex:1;padding:6px;font-size:11px;opacity:0.7;">← Back</button>
+        <button onclick="captureCameraFrame()" style="flex:1;padding:6px;font-size:11px;background:#378ADD !important;border-color:#378ADD !important;font-weight:600;"><i class="ti ti-camera" aria-hidden="true"></i> Capture</button>
+      </div>
     </div>
 
     <div id="scan-step-loading" style="display:none;text-align:center;padding:30px 0;">
@@ -1384,10 +1393,13 @@ function openScanModal(){
   m.onclick=closeScanModal;
 }
 function closeScanModal(){
+  stopCamera();
   document.getElementById('scan-modal').style.display='none';
 }
 function resetScanModal(){
+  stopCamera();
   document.getElementById('scan-step-capture').style.display='block';
+  document.getElementById('scan-step-camera').style.display='none';
   document.getElementById('scan-step-loading').style.display='none';
   document.getElementById('scan-step-review').style.display='none';
   document.getElementById('scan-camera-input').value='';
@@ -1400,6 +1412,53 @@ function resetScanModal(){
 function handleScanInput(ev){
   const file=ev.target.files&&ev.target.files[0];
   if(file) processScanFile(file);
+}
+
+// Take Photo: on mobile (e.g. Pixel / iPhone) the native camera app via the capture
+// input is the best experience; on desktop that input is just a file picker, so use
+// getUserMedia for a live in-modal preview of the built-in camera (e.g. iMac FaceTime HD).
+let _cameraStream=null;
+function isMobileDevice(){
+  if(navigator.userAgentData&&typeof navigator.userAgentData.mobile==='boolean') return navigator.userAgentData.mobile;
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
+async function takePhoto(){
+  if(isMobileDevice()||!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)){
+    document.getElementById('scan-camera-input').click();
+    return;
+  }
+  let stream;
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1920},height:{ideal:1080}}});
+  }catch(err){
+    alert('Could not access the camera ('+(err&&err.name?err.name:err)+') — falling back to choosing an image file.');
+    document.getElementById('scan-file-input').click();
+    return;
+  }
+  _cameraStream=stream;
+  document.getElementById('scan-step-capture').style.display='none';
+  document.getElementById('scan-step-camera').style.display='block';
+  document.getElementById('scan-video').srcObject=stream;
+}
+function stopCamera(){
+  if(_cameraStream){_cameraStream.getTracks().forEach(t=>t.stop());_cameraStream=null;}
+  const video=document.getElementById('scan-video');
+  if(video) video.srcObject=null;
+}
+function cancelCamera(){
+  resetScanModal();
+}
+async function captureCameraFrame(){
+  const video=document.getElementById('scan-video');
+  if(!video.videoWidth){alert('Camera is still starting up — try again in a second.');return;}
+  const c=document.createElement('canvas');
+  c.width=video.videoWidth;c.height=video.videoHeight;
+  c.getContext('2d').drawImage(video,0,0);
+  stopCamera();
+  document.getElementById('scan-step-camera').style.display='none';
+  const blob=await new Promise(res=>c.toBlob(res,'image/png'));
+  if(!blob){alert('Could not capture a frame from the camera.');resetScanModal();return;}
+  processScanFile(new File([blob],'camera-capture.png',{type:'image/png'}));
 }
 
 function fileToDataURL(file){
