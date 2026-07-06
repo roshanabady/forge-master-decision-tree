@@ -250,6 +250,19 @@ function rollCapStatus(value,statDef){
 }
 function capStatusColor(st){return st==='at'?'#2ACC97':st==='near'?'#DCA63B':null;}
 function capStatusLabel(st){return st==='at'?'MAX':st==='near'?'~CAP':'';}
+// Continuous fill color for the roll-cap progress bar — same thresholds as the MAX/~CAP badge,
+// but always resolves to a color (never null) so every active substat gets a visible bar.
+function capBarColor(st){return st==='at'?'#2ACC97':st==='near'?'#DCA63B':'#378ADD';}
+function capBarRow(value,statDef,opts={}){
+  if(!statDef) return '';
+  const ratio=Math.max(0,Math.min(1,value/statDef.max));
+  const st=rollCapStatus(value,statDef);
+  const col=capBarColor(st);
+  const pct=value>0?Math.max(3,Math.round(ratio*100)):0;
+  const idAttr=opts.id?` id="${opts.id}"`:'';
+  return `<div${idAttr} style="height:3px;background:var(--surface-0);border-radius:2px;overflow:hidden;margin-top:2px;" title="${fmtVal(value)}% of ${statDef.max}% roll cap">`+
+    `<div style="width:${pct}%;height:100%;background:${col};border-radius:2px;transition:width 0.15s,background 0.15s;"></div></div>`;
+}
 function cardRollCapLevel(e,d){
   if(!['gear','mount','pet','parked'].includes(e.type)) return null;
   ensureSlotVals(d);
@@ -725,7 +738,11 @@ function cardBody(e,d,isSel,buildTotals){
     const valCol=capCol||(v>0?'var(--text-primary)':'var(--text-muted)');
     const capHint=capSt?`<span style="font-size:8px;font-weight:700;color:${capCol};margin-left:3px;" title="Per-roll cap ${s.max}% (${SUBSTAT_WIKI})">${capStatusLabel(capSt)}</span>`:'';
     const valText=v>0?(k==='cooldown'?'-':'')+fmtVal(v)+'%'+capHint:'—';
-    return `<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-secondary);padding:1px 0;"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;">${s.l}${delta}</span><span style="font-weight:500;color:${valCol};flex-shrink:0;margin-left:4px;">${valText}</span></div>`;
+    const bar=v>0?capBarRow(v,s):'';
+    return `<div style="padding:1px 0;">
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-secondary);"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;">${s.l}${delta}</span><span style="font-weight:500;color:${valCol};flex-shrink:0;margin-left:4px;">${valText}</span></div>
+      ${bar}
+    </div>`;
   }).join('');
   return `<div style="padding:3px 9px 8px;">${rows}</div>`;
 }
@@ -826,7 +843,10 @@ function makeInlineEditor(e,d){
       const capSt=s?rollCapStatus(numV,s):null;
       const capCol=capStatusColor(capSt);
       const inputExtra=capSt?`border:1px solid ${capCol};background:${capSt==='at'?'rgba(42,204,151,0.08)':'rgba(220,166,59,0.08)'};`:'';
-      const capHint=capSt?`<span style="font-size:8px;font-weight:700;color:${capCol};" title="Roll cap ${s.max}%">${capStatusLabel(capSt)}</span>`:'<span style="font-size:9px;color:var(--text-muted);flex-shrink:0;">%</span>';
+      const capHint=capSt
+        ?`<span id="capbadge-${e.id}-${i}" style="font-size:8px;font-weight:700;color:${capCol};" title="Roll cap ${s.max}%">${capStatusLabel(capSt)}</span>`
+        :`<span id="capbadge-${e.id}-${i}" style="font-size:9px;color:var(--text-muted);flex-shrink:0;">%</span>`;
+      const bar=s?capBarRow(numV,s,{id:`capbar-${e.id}-${i}`}):'';
       return `<div style="margin:3px 0;">
         <select id="ef-${e.id}-slot-${i}" onchange="updSlot('${e.id}',${i},this.value,this)" style="font-size:9px;padding:2px 4px;width:100%;box-sizing:border-box;">
           <option value=""${!k?' selected':''}>— Substat —</option>
@@ -836,6 +856,7 @@ function makeInlineEditor(e,d){
           <input type="number" step="0.1" value="${v||''}" placeholder="0" oninput="updStatVal('${e.id}',${i},+this.value)" id="ssval-${e.id}-${i}" style="font-size:10px;padding:2px 4px;text-align:right;width:50px;min-width:0;box-sizing:border-box;${inputExtra}"${k?'':' disabled'}>
           ${capHint}
         </div>
+        ${bar}
       </div>`;
     }).join('');
 
@@ -1059,6 +1080,49 @@ function updStatVal(id,slotIdx,val){
   d.slotVals[slotIdx]=isNaN(val)?0:val;
   syncSubstatsFromSlots(d);
   queueSave();
+  liveUpdateCapIndicators(id,slotIdx);
+}
+// Updates the cap bar/badge/input highlight in place as the user types,
+// instead of a full renderCards() which would blow away input focus/cursor.
+function liveUpdateCapIndicators(id,slotIdx){
+  const d=state[id];
+  const k=(d.activeSlots||[])[slotIdx];
+  const s=k?SS.find(x=>x.k===k):null;
+  if(!s) return;
+  const v=parseFloat((d.slotVals||[])[slotIdx])||0;
+  const st=rollCapStatus(v,s);
+  const barWrap=document.getElementById(`capbar-${id}-${slotIdx}`);
+  if(barWrap){
+    const ratio=Math.max(0,Math.min(1,v/s.max));
+    const pct=v>0?Math.max(3,Math.round(ratio*100)):0;
+    barWrap.title=`${fmtVal(v)}% of ${s.max}% roll cap`;
+    const fill=barWrap.firstElementChild;
+    if(fill){fill.style.width=pct+'%';fill.style.background=capBarColor(st);}
+  }
+  const badge=document.getElementById(`capbadge-${id}-${slotIdx}`);
+  if(badge){
+    if(st){
+      badge.textContent=capStatusLabel(st);
+      badge.style.color=capStatusColor(st);
+      badge.style.fontWeight='700';
+      badge.style.fontSize='8px';
+    }else{
+      badge.textContent='%';
+      badge.style.color='var(--text-muted)';
+      badge.style.fontWeight='';
+      badge.style.fontSize='9px';
+    }
+  }
+  const input=document.getElementById(`ssval-${id}-${slotIdx}`);
+  if(input){
+    if(st){
+      input.style.border=`1px solid ${capStatusColor(st)}`;
+      input.style.background=st==='at'?'rgba(42,204,151,0.08)':'rgba(220,166,59,0.08)';
+    }else{
+      input.style.border='';
+      input.style.background='';
+    }
+  }
 }
 
 function toggleStatus(id){
