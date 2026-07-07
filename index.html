@@ -21,6 +21,7 @@
 body {
   margin: 0;
   height: 100vh;
+  height: 100dvh; /* mobile: track the real visible height as browser chrome shows/hides */
   overflow: hidden;
   background: var(--surface-0);
   color: var(--text-primary);
@@ -147,13 +148,15 @@ input[type="checkbox"] {
       <span style="opacity:0.85;"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#DCA63B;margin-right:3px;vertical-align:middle;"></span>Near cap</span>
     </div>
     <button onclick="openNewCardModal()" style="font-size:11px;padding:4px 10px;" title="Add new card"><i class="ti ti-plus" aria-hidden="true"></i> New Card</button>
-    <button onclick="openScanModal()" style="font-size:11px;padding:4px 10px;" title="Scan a gear, pet or mount card from a photo — take a picture, choose an image, or drop one on the board"><i class="ti ti-camera" aria-hidden="true"></i> Scan Gear</button>
+    <button onclick="openScanModal()" style="font-size:11px;padding:4px 10px;" title="Create a new gear, pet or mount card from a screenshot — choose an image, or drop one on the board. To update an existing card, use the camera button on the card itself."><i class="ti ti-camera" aria-hidden="true"></i> Scan Gear</button>
     <button onclick="fitToScreen()" style="font-size:11px;padding:4px 8px;opacity:0.7;" title="Scale the whole board to fit your screen"><i class="ti ti-arrows-diagonal-minimize-2" aria-hidden="true"></i> Fit Screen</button>
 
     <button onclick="layoutCleanup()" style="font-size:11px;padding:4px 8px;opacity:0.7;" title="Snap current card positions to grid without moving them out of place"><i class="ti ti-broom" aria-hidden="true"></i> Layout Clean-up</button>
     <button onclick="exportJSON()" style="font-size:11px;padding:4px 8px;" title="Download build as JSON"><i class="ti ti-download" aria-hidden="true"></i></button>
     <button onclick="document.getElementById('import-file').click()" style="font-size:11px;padding:4px 8px;" title="Import build from JSON"><i class="ti ti-upload" aria-hidden="true"></i></button>
-    <button onclick="resetBoard()" style="font-size:11px;padding:4px 8px;opacity:0.7;" title="Reset board — clears all saved data and restores seed"><i class="ti ti-trash-x" aria-hidden="true"></i></button>
+    <!-- Reset is collapsed behind the ⋯ toggle so it can't be clicked by accident -->
+    <button onclick="toggleResetBtn()" style="font-size:11px;padding:4px 8px;opacity:0.7;" title="More…"><i class="ti ti-dots-vertical" aria-hidden="true"></i></button>
+    <button id="reset-board-btn" onclick="resetBoard()" style="display:none;font-size:11px;padding:4px 8px;background:#5c1a1a !important;color:#f87171 !important;border-color:#7f1d1d !important;" title="Reset board — empties every card (positions kept) and removes parked cards. A JSON backup downloads first."><i class="ti ti-trash-x" aria-hidden="true"></i> Reset board</button>
     <input type="file" id="import-file" accept=".json" style="display:none;" onchange="importJSON(event)">
     <button id="undo-btn" onclick="undoDelete()" style="display:none;font-size:11px;padding:4px 8px;" title="Restore the last deleted card"><i class="ti ti-arrow-back-up" aria-hidden="true"></i> Undo delete</button>
     <span id="save-btn" style="font-size:11px;padding:4px 6px;opacity:0.5;"></span>
@@ -169,7 +172,7 @@ input[type="checkbox"] {
 
 <!-- New card modal -->
 <div id="new-card-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:999;align-items:center;justify-content:center;">
-  <div style="background:var(--surface-2);border:1px solid var(--border-strong);border-radius:12px;padding:24px 28px;min-width:320px;box-shadow:0 8px 32px rgba(0,0,0,0.5);" onclick="event.stopPropagation()">
+  <div style="background:var(--surface-2);border:1px solid var(--border-strong);border-radius:12px;padding:24px 28px;width:360px;max-width:94vw;box-sizing:border-box;max-height:88vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.5);" onclick="event.stopPropagation()">
     <div id="new-card-title" style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:16px;">Add new card</div>
     <div id="new-card-type-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:20px;">
       <button onclick="pickNewCardType('gear')"    style="padding:10px;display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11px;"><i class="ti ti-settings" style="font-size:20px;color:#968DF2;"></i>Gear</button>
@@ -186,13 +189,13 @@ input[type="checkbox"] {
 
 <!-- Scan gear modal -->
 <div id="scan-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:999;align-items:center;justify-content:center;">
-  <div style="background:var(--surface-2);border:1px solid var(--border-strong);border-radius:12px;padding:24px 28px;width:360px;max-width:92vw;max-height:86vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.5);" onclick="event.stopPropagation()">
-    <div style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:4px;">Scan gear, pet or mount card</div>
+  <div style="background:var(--surface-2);border:1px solid var(--border-strong);border-radius:12px;padding:24px 28px;width:360px;max-width:94vw;box-sizing:border-box;max-height:88vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.5);" onclick="event.stopPropagation()">
+    <div id="scan-modal-title" style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:4px;">Scan gear, pet or mount card</div>
 
     <div id="scan-step-capture">
       <div style="font-size:10px;color:var(--text-muted);margin:2px 0 14px;">Best-effort OCR from a photo of the item's screen in-game. Always double-check the fields before saving.</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
-        <button onclick="takePhoto()" style="padding:14px 8px;display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11px;"><i class="ti ti-camera" style="font-size:20px;color:#378ADD;" aria-hidden="true"></i>Take Photo</button>
+      <!-- Take Photo is disabled for now (screenshot upload works far better for OCR); takePhoto() and the camera step remain dormant below for easy re-enabling -->
+      <div style="display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:10px;">
         <button onclick="document.getElementById('scan-file-input').click()" style="padding:14px 8px;display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11px;"><i class="ti ti-photo-up" style="font-size:20px;color:#378ADD;" aria-hidden="true"></i>Choose Image</button>
       </div>
       <div id="scan-dropzone" style="border:1.5px dashed var(--border-strong);border-radius:8px;padding:16px;text-align:center;font-size:10px;color:var(--text-muted);margin-bottom:16px;">…or drop an image here</div>
@@ -219,10 +222,11 @@ input[type="checkbox"] {
         <img id="scan-thumb" style="width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid var(--border);flex-shrink:0;" alt="Scanned photo">
         <div style="font-size:9px;color:var(--text-muted);flex:1;">Check every field — OCR can misread small game text. Nothing is saved until you click Create / Update.</div>
       </div>
-      <div style="margin-bottom:6px;">
-        <label style="font-size:9px;color:var(--text-muted);display:block;margin-bottom:2px;">Card</label>
+      <div id="scan-target-row" style="margin-bottom:6px;">
+        <label style="font-size:9px;color:var(--text-muted);display:block;margin-bottom:2px;">New card</label>
         <select id="scan-target" class="ef-in"></select>
       </div>
+      <div id="scan-target-fixed" style="display:none;margin-bottom:6px;font-size:10px;color:var(--text-secondary);padding:4px 6px;background:var(--surface-1);border:1px solid var(--border);border-radius:4px;"></div>
       <div style="display:grid;grid-template-columns:1fr 42px;gap:4px;margin-bottom:6px;">
         <div><label style="font-size:9px;color:var(--text-muted);display:block;margin-bottom:2px;">Item name</label><input id="scan-name" type="text" class="ef-in"></div>
         <div><label style="font-size:9px;color:var(--text-muted);display:block;margin-bottom:2px;">Lv</label><input id="scan-level" type="number" min="0" class="ef-in ta-c"></div>
@@ -622,7 +626,8 @@ function backfillSeed(){
       if(s.slots){
         const cur=state[e.id].slots||[];
         const empty=cur.every(sl=>!sl.name||!sl.name.trim());
-        if(empty) state[e.id].slots=s.slots;
+        // cleared flag = the user reset the board on purpose; don't re-seed over it
+        if(empty&&!state[e.id].cleared) state[e.id].slots=s.slots;
       }
     }
   });
@@ -981,11 +986,15 @@ function makeInlineEditor(e,d){
       <button onclick="updField('${e.id}','status','equipped')" ${equipDisabled?'disabled':''} style="font-size:9px;padding:2px 6px;flex:1;${curStatus==='equipped'?'background:#2ACC97;color:#fff;border-color:#2ACC97;font-weight:600;':equipDisabled?'opacity:0.3;cursor:not-allowed;':'opacity:0.55;'}">${equipLabel}</button>
       <button onclick="updField('${e.id}','status','parked')" style="font-size:9px;padding:2px 6px;flex:1;${curStatus==='parked'?'background:#666;color:#fff;border-color:#666;font-weight:600;':'opacity:0.55;'}">Parked</button>
     </div>`:'';
+  const scanBtn=['gear','mount','pet','parked'].includes(e.type)
+    ?`<button onclick="event.stopPropagation();openScanModalForCard('${e.id}')" style="font-size:9px;padding:2px 8px;margin-left:auto;" title="Update this card from a screenshot"><i class="ti ti-camera" aria-hidden="true"></i> Scan</button>`
+    :'';
   return `<div style="padding:2px 9px 8px;" onclick="event.stopPropagation();">
     ${content}
     ${statusBtns}
     <div style="display:flex;gap:4px;margin-top:6px;">
       <button onclick="deleteEnt('${e.id}')" style="font-size:9px;padding:2px 8px;background:#5c1a1a !important;color:#f87171 !important;border-color:#7f1d1d !important;">Delete</button>
+      ${scanBtn}
     </div>
   </div>`;
 }
@@ -1112,6 +1121,7 @@ function selEnt(id){
   if(selId === id) return;
   selId=id;
   renderCards();
+  panCardIntoView(id);
 }
 
 function flushEditorValues(){
@@ -1341,37 +1351,38 @@ function createGearEnt(partKey){
   const part=GEAR_PARTS.find(p=>p.k===partKey);
   if(!part) return;
   closeNewCardModal();
-  const canvas=document.getElementById('canvas');
-  const cW=canvas?canvas.clientWidth:800, cH=canvas?canvas.clientHeight:600;
   const id='gear_'+Date.now();
   const w=145,h=116;
-  const newEnt={id,label:part.label,type:'gear',icon:part.icon,slotIcon:part.slotIcon,x:Math.round(cW/2-w/2),y:Math.round(cH/2-h/2),w,h,_dynamic:true};
+  const c=viewportCenterOnCanvas(w,h);
+  const newEnt={id,label:part.label,type:'gear',icon:part.icon,slotIcon:part.slotIcon,x:c.x,y:c.y,w,h,_dynamic:true};
   ENTS.push(newEnt);
   state[id]=defData(id);
   if(!state.positions)state.positions={};
   state.positions[id]={x:newEnt.x,y:newEnt.y};
   selId=id;
-  renderCards();saveAll();
+  renderCards();panCardIntoView(id);saveAll();
 }
 
 function createEnt(type){
   closeNewCardModal();
-  const canvas=document.getElementById('canvas');
-  const cW=canvas?canvas.clientWidth:800, cH=canvas?canvas.clientHeight:600;
   const id=type+'_'+Date.now();
   const w=145, h=116;
-  const newEnt={id,label:TYPE_LABEL[type],type,icon:TYPE_ICON[type],x:Math.round(cW/2-w/2),y:Math.round(cH/2-h/2),w,h,_dynamic:true};
+  const c=viewportCenterOnCanvas(w,h);
+  const newEnt={id,label:TYPE_LABEL[type],type,icon:TYPE_ICON[type],x:c.x,y:c.y,w,h,_dynamic:true};
   ENTS.push(newEnt);
   state[id]=defData(id);
   if(!state.positions)state.positions={};
   state.positions[id]={x:newEnt.x,y:newEnt.y};
   selId=id;
-  renderCards();saveAll();
+  renderCards();panCardIntoView(id);saveAll();
 }
 
 // --- Scan Gear: OCR a photo of an in-game item card into a filled-in card ---
 // Loaded on demand (not in <head>) so the ~2MB OCR library never costs anyone who doesn't use it.
 let _tesseractLoadPromise=null, _scanImageDataUrl=null;
+// When set, the scan flow updates this existing card instead of creating a new one
+// (entered via the camera button on a selected card; cleared on close, kept across Rescan).
+let _scanTargetId=null;
 function loadTesseract(){
   if(window.Tesseract) return Promise.resolve();
   if(_tesseractLoadPromise) return _tesseractLoadPromise;
@@ -1386,6 +1397,19 @@ function loadTesseract(){
 }
 
 function openScanModal(){
+  _scanTargetId=null;
+  document.getElementById('scan-modal-title').textContent='Scan gear, pet or mount card';
+  resetScanModal();
+  const m=document.getElementById('scan-modal');
+  m.style.display='flex';
+  m.onclick=closeScanModal;
+}
+function openScanModalForCard(id){
+  const ent=ENTS.find(e=>e.id===id);
+  if(!ent||!state[id]) return;
+  _scanTargetId=id;
+  const nm=state[id].name;
+  document.getElementById('scan-modal-title').textContent=`Update ${ent.label}${nm?': '+nm:''} from a screenshot`;
   resetScanModal();
   const m=document.getElementById('scan-modal');
   m.style.display='flex';
@@ -1393,6 +1417,7 @@ function openScanModal(){
 }
 function closeScanModal(){
   stopCamera();
+  _scanTargetId=null;
   document.getElementById('scan-modal').style.display='none';
 }
 function resetScanModal(){
@@ -1469,6 +1494,23 @@ function fileToDataURL(file){
   });
 }
 
+// The game's item popup always sits in the middle/lower part of a screenshot; the top
+// third is HUD (player name, stage banner) that poisons the OCR name/level detection.
+function cropScanImage(dataUrl){
+  return new Promise((res,rej)=>{
+    const img=new Image();
+    img.onload=()=>{
+      const sy=Math.floor(img.naturalHeight/3), sh=img.naturalHeight-sy;
+      const c=document.createElement('canvas');
+      c.width=img.naturalWidth;c.height=sh;
+      c.getContext('2d').drawImage(img,0,sy,img.naturalWidth,sh,0,0,img.naturalWidth,sh);
+      res(c.toDataURL('image/png'));
+    };
+    img.onerror=()=>rej(new Error('Could not decode the image.'));
+    img.src=dataUrl;
+  });
+}
+
 async function processScanFile(file){
   if(!file.type||!file.type.startsWith('image/')){alert('Please provide an image file.');return;}
   const m=document.getElementById('scan-modal');
@@ -1480,7 +1522,7 @@ async function processScanFile(file){
   progText.textContent='Loading OCR engine…';
   let worker=null;
   try{
-    _scanImageDataUrl=await fileToDataURL(file);
+    _scanImageDataUrl=await cropScanImage(await fileToDataURL(file));
     await loadTesseract();
     progText.textContent='Reading image…';
     worker=await Tesseract.createWorker('eng',1,{
@@ -1516,19 +1558,73 @@ const SS_ALIASES={
 };
 const SS_PRIORITY=Object.keys(SS_ALIASES);
 
+function levenshtein(a,b){
+  const m=a.length,n=b.length;
+  if(!m) return n; if(!n) return m;
+  let prev=Array.from({length:n+1},(_,j)=>j);
+  for(let i=1;i<=m;i++){
+    const cur=[i];
+    for(let j=1;j<=n;j++)
+      cur[j]=Math.min(prev[j]+1,cur[j-1]+1,prev[j-1]+(a[i-1]===b[j-1]?0:1));
+    prev=cur;
+  }
+  return prev[n];
+}
+
+// OCR mangles the game's stylized title font (e.g. "Lily Pad" reads as "Ulily]Rad]").
+// Clean bracket residue, then snap to a known pet/mount/existing-card name when close.
+function canonicalScanName(raw){
+  const cleaned=(raw||'').replace(/[\[\]\(\)\{\}\|<>]/g,' ').replace(/\s+/g,' ').trim();
+  const norm=cleaned.toLowerCase().replace(/[^a-z0-9 ]/g,'').trim();
+  if(!norm) return cleaned;
+  const cands=new Set([...Object.keys(PET_NAME_ICON),...Object.keys(MOUNT_NAME_ICON)]);
+  ENTS.forEach(e=>{const nm=state[e.id]&&state[e.id].name;if(nm)cands.add(nm.toLowerCase());});
+  // OCR often prepends junk ("lfuceant;" for "Treant"), so also try candidate-sized
+  // windows of the OCR string and keep the best alignment.
+  const dist=(s,c)=>{
+    let d=levenshtein(s,c);
+    if(s.length>c.length){
+      for(const L of [c.length-1,c.length,c.length+1]){
+        if(L<1||L>s.length) continue;
+        for(let i=0;i+L<=s.length;i++) d=Math.min(d,levenshtein(s.slice(i,i+L),c));
+      }
+    }
+    return d;
+  };
+  let best=null,bestD=Infinity;
+  cands.forEach(c=>{const d=dist(norm,c);if(d<bestD){bestD=d;best=c;}});
+  if(best&&bestD<=Math.max(2,Math.floor(best.length/3)))
+    return best.replace(/(^|\s)\w/g,ch=>ch.toUpperCase());
+  return cleaned;
+}
+
 function parseGearOCR(rawText){
-  const lines=rawText.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
-  const lower=rawText.toLowerCase();
+  const allLines=rawText.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
   const result={name:'',level:0,rarity:'',substats:[],damage:0,hp:0,rawText};
 
-  const lvMatch=rawText.match(/\blv\.?\s*(\d{1,4})\b/i)||rawText.match(/\blevel\s*[:\-]?\s*(\d{1,4})\b/i);
-  if(lvMatch) result.level=parseInt(lvMatch[1],10)||0;
+  // The game titles every item popup "[Rarity] Name". Finding a known rarity word both
+  // fills rarity+name directly and marks where the popup's own text starts, so dimmed
+  // background text that survives the crop (grid "Locked Lv. N" badges) can be ignored.
+  let anchorIdx=-1;
+  const rarWords=RARITIES.filter(Boolean).sort((a,b)=>b.length-a.length);
+  for(let i=0;i<allLines.length&&anchorIdx===-1;i++){
+    const ll=allLines[i].toLowerCase();
+    for(const r of rarWords){
+      const idx=ll.indexOf(r.toLowerCase());
+      if(idx===-1) continue;
+      result.rarity=r;
+      const after=allLines[i].slice(idx+r.length).replace(/^[\]\)\}\|>:,.\s-]+/,'').trim();
+      if(after.length>=2) result.name=after;
+      anchorIdx=i;
+      break;
+    }
+  }
+  // The popup's "Lv." badge OCRs within a couple of lines of the title, hence anchor-2.
+  const lines=anchorIdx>=0?allLines.slice(Math.max(0,anchorIdx-2)):allLines;
 
-  let rarityIdx=Infinity;
-  RARITIES.filter(Boolean).forEach(r=>{
-    const idx=lower.indexOf(r.toLowerCase());
-    if(idx!==-1&&idx<rarityIdx){rarityIdx=idx;result.rarity=r;}
-  });
+  const winText=lines.join('\n');
+  const lvMatch=winText.match(/\blv\.?\s*(\d{1,4})\b/i)||winText.match(/\blevel\s*[:\-]?\s*(\d{1,4})\b/i);
+  if(lvMatch) result.level=parseInt(lvMatch[1],10)||0;
 
   const claimedLines=new Set();
   const found=[];
@@ -1539,7 +1635,16 @@ function parseGearOCR(rawText){
       if(!hit) continue;
       const numMatch=line.match(/([+-]?\d+(?:\.\d+)?)\s*%/);
       if(!numMatch) continue;
-      found.push({key,val:parseFloat(numMatch[1]),idx});
+      // abs(): the game renders "less is better" stats negative ("-5.74% Skill Cooldown") but the app stores positive values
+      let val=Math.abs(parseFloat(numMatch[1]));
+      // OCR reads the leading "+" as a "1" ("+13.4%" → "113.4%"); if the value breaks
+      // the stat's roll cap and dropping that 1 fixes it, trust the capped reading.
+      const smax=(SS.find(x=>x.k===key)||{}).max;
+      if(smax&&val>smax&&/^[+-]?1/.test(numMatch[1])){
+        const alt=Math.abs(parseFloat(numMatch[1].replace(/^([+-]?)1/,'$1')));
+        if(alt&&alt<=smax) val=alt;
+      }
+      found.push({key,val,idx});
       claimedLines.add(idx);
       break;
     }
@@ -1572,37 +1677,50 @@ function parseGearOCR(rawText){
   result.damage=hinted.damage||0;
   result.hp=hinted.hp||0;
 
-  for(const line of lines){
-    const ll=line.toLowerCase();
-    if(RARITIES.filter(Boolean).some(r=>ll.includes(r.toLowerCase()))) continue;
-    if(/\blv\.?\s*\d/.test(ll)||/\blevel\b/.test(ll)) continue;
-    if(/%/.test(line)) continue;
-    if(/^[\d\s.,kmb%⚔♥+\-]+$/i.test(line)) continue;
-    if(line.length<2) continue;
-    result.name=line;
-    break;
+  if(!result.name){
+    for(const line of lines){
+      const ll=line.toLowerCase();
+      if(RARITIES.filter(Boolean).some(r=>ll.includes(r.toLowerCase()))) continue;
+      if(/\blv\.?\s*\d/.test(ll)||/\blevel\b/.test(ll)) continue;
+      if(/%/.test(line)) continue;
+      if(/^[\d\s.,kmb%⚔♥+\-]+$/i.test(line)) continue;
+      if(line.length<2) continue;
+      result.name=line;
+      break;
+    }
   }
+  result.name=canonicalScanName(result.name);
 
   return result;
 }
 
+// Scan Gear creates new cards only; updating an existing card goes through the
+// camera button on the card itself (openScanModalForCard).
 function scanTargetOptions(){
-  const optsFor=types=>ENTS.filter(e=>types.includes(e.type)).map(e=>{
-    const nm=state[e.id]&&state[e.id].name;
-    return `<option value="${e.id}">${esc(e.label)}${nm?': '+esc(nm):''}</option>`;
-  }).join('');
-  const gearOpts=optsFor(['gear']);
-  const petOpts=optsFor(['pet']);
-  const mountOpts=optsFor(['mount']);
-  const parkedOpts=optsFor(['parked']);
-  const newOpts=GEAR_PARTS.map(p=>`<option value="new:${p.k}">New ${esc(p.label)} card</option>`).join('')
+  return GEAR_PARTS.map(p=>`<option value="new:${p.k}">New ${esc(p.label)} card</option>`).join('')
     +`<option value="new:pet">New Pet card</option>`
     +`<option value="new:mount">New Mount card</option>`;
-  return (gearOpts?`<optgroup label="Update existing gear">${gearOpts}</optgroup>`:'')
-    +(petOpts?`<optgroup label="Update existing pets">${petOpts}</optgroup>`:'')
-    +(mountOpts?`<optgroup label="Update existing mounts">${mountOpts}</optgroup>`:'')
-    +(parkedOpts?`<optgroup label="Update inventory (parked)">${parkedOpts}</optgroup>`:'')
-    +`<optgroup label="Create new">${newOpts}</optgroup>`;
+}
+
+const GEAR_PART_HINTS={
+  head:['helmet','mask','cap','hood','crown','visor'],
+  armor:['armor','suit','plate','mail','vest','robe'],
+  hands:['glove','gauntlet','fist'],
+  neck:['neck','choker','amulet','pendant'],
+  ring:['ring'],
+  weapon:['sword','rifle','blade','bow','staff','gun','axe','dagger','wand','weapon'],
+  feet:['boot','sock','shoe','greave'],
+  belt:['belt','synchronizer','girdle'],
+};
+function guessScanTarget(name){
+  const n=(name||'').trim().toLowerCase();
+  if(!n) return '';
+  if(PET_NAME_ICON[n]) return 'new:pet';
+  if(MOUNT_NAME_ICON[n]) return 'new:mount';
+  for(const k of Object.keys(GEAR_PART_HINTS)){
+    if(GEAR_PART_HINTS[k].some(w=>n.includes(w))) return 'new:'+k;
+  }
+  return '';
 }
 
 function showScanReview(parsed){
@@ -1611,7 +1729,34 @@ function showScanReview(parsed){
   document.getElementById('scan-thumb').src=_scanImageDataUrl||'';
   document.getElementById('scan-raw-text').textContent=parsed.rawText.trim()||'(no text recognized)';
 
-  document.getElementById('scan-target').innerHTML=scanTargetOptions();
+  // When updating an existing card, keep its current values for anything the OCR
+  // couldn't read (the stylized "Lv." badge often doesn't scan) instead of blanking them.
+  if(_scanTargetId&&state[_scanTargetId]){
+    const cur=state[_scanTargetId];
+    if(!parsed.level&&cur.level) parsed.level=cur.level;
+    if(!parsed.name&&cur.name) parsed.name=cur.name;
+    if(!parsed.rarity&&cur.rarity) parsed.rarity=cur.rarity;
+    if(!parsed.damage&&cur.damage) parsed.damage=cur.damage;
+    if(!parsed.hp&&cur.hp) parsed.hp=cur.hp;
+    if(!parsed.substats.length&&cur.activeSlots)
+      parsed.substats=cur.activeSlots.map((k,i)=>({key:k,val:parseFloat((cur.slotVals||[])[i])||0})).filter(s=>s.key);
+  }
+  const targetRow=document.getElementById('scan-target-row');
+  const targetFixed=document.getElementById('scan-target-fixed');
+  if(_scanTargetId&&state[_scanTargetId]){
+    const tent=ENTS.find(e=>e.id===_scanTargetId);
+    const nm=state[_scanTargetId].name;
+    targetRow.style.display='none';
+    targetFixed.style.display='block';
+    targetFixed.textContent=`Updating: ${tent?tent.label:_scanTargetId}${nm?': '+nm:''}`;
+  }else{
+    targetRow.style.display='block';
+    targetFixed.style.display='none';
+    const sel=document.getElementById('scan-target');
+    sel.innerHTML=scanTargetOptions();
+    const guess=guessScanTarget(parsed.name);
+    if(guess) sel.value=guess;
+  }
   document.getElementById('scan-name').value=parsed.name||'';
   document.getElementById('scan-level').value=parsed.level||'';
 
@@ -1634,20 +1779,23 @@ function showScanReview(parsed){
 }
 
 function applyScanResult(){
-  const targetVal=document.getElementById('scan-target').value;
   let id;
-  if(targetVal.startsWith('new:')){
+  if(_scanTargetId&&state[_scanTargetId]){
+    id=_scanTargetId;
+  }else{
+    const targetVal=document.getElementById('scan-target').value;
+    if(!targetVal.startsWith('new:')){alert('Pick a card type to create.');return;}
     const key=targetVal.slice(4);
-    const canvas=document.getElementById('canvas');
-    const cW=canvas?canvas.clientWidth:800, cH=canvas?canvas.clientHeight:600;
-    const w=145,h=116, x=Math.round(cW/2-w/2), y=Math.round(cH/2-h/2);
+    const w=145,h=116;
+    const c=viewportCenterOnCanvas(w,h);
+    const x=c.x, y=c.y;
     let newEnt;
     if(key==='pet'||key==='mount'){
       id=key+'_'+Date.now();
       newEnt={id,label:TYPE_LABEL[key],type:key,icon:TYPE_ICON[key],x,y,w,h,_dynamic:true};
     }else{
       const part=GEAR_PARTS.find(p=>p.k===key);
-      if(!part){alert('Pick a card to update or create.');return;}
+      if(!part){alert('Pick a card type to create.');return;}
       id='gear_'+Date.now();
       newEnt={id,label:part.label,type:'gear',icon:part.icon,slotIcon:part.slotIcon,x,y,w,h,_dynamic:true};
     }
@@ -1655,9 +1803,6 @@ function applyScanResult(){
     state[id]=defData(id);
     if(!state.positions)state.positions={};
     state.positions[id]={x,y};
-  }else{
-    id=targetVal;
-    if(!id||!state[id]){alert('Pick a card to update or create.');return;}
   }
 
   const d=state[id];
@@ -1677,6 +1822,7 @@ function applyScanResult(){
 
   selId=id;
   renderCards();
+  panCardIntoView(id);
   saveAll();
   closeScanModal();
 }
@@ -1696,7 +1842,7 @@ function dupEnt(srcId){
   if(!state.positions)state.positions={};
   state.positions[newId]={x:newX,y:newY};
   selId=newId;
-  renderCards();saveAll();
+  renderCards();panCardIntoView(newId);saveAll();
 }
 
 let _lastDeleted=null,_undoTimer=null;
@@ -1784,16 +1930,52 @@ function importJSON(ev){
   ev.target.value='';
 }
 
-async function resetBoard(){
-  if(!confirm('Reset the whole board? This permanently clears all saved cards, positions and settings and restores the seed data.'))return;
-  try{
-    if(db){db.close();db=null;}
-    await new Promise(res=>{
-      const r=indexedDB.deleteDatabase('forge-master-v9');
-      r.onsuccess=res;r.onerror=res;r.onblocked=res;
-    });
-  }catch(e){}
-  location.reload();
+let _resetHideTimer=null;
+function toggleResetBtn(){
+  const b=document.getElementById('reset-board-btn');
+  const show=b.style.display==='none';
+  b.style.display=show?'inline-block':'none';
+  clearTimeout(_resetHideTimer);
+  // collapse again on its own so it doesn't linger as an accidental-click target
+  if(show) _resetHideTimer=setTimeout(()=>{b.style.display='none';},8000);
+}
+
+function showToast(msg){
+  let t=document.getElementById('toast');
+  if(!t){
+    t=document.createElement('div');
+    t.id='toast';
+    t.style.cssText='position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--surface-2);border:1px solid var(--border-strong);color:var(--text-primary);padding:8px 14px;border-radius:8px;font-size:11px;z-index:1000;box-shadow:0 4px 16px rgba(0,0,0,0.4);transition:opacity 0.3s;';
+    document.body.appendChild(t);
+  }
+  t.textContent=msg;
+  t.style.display='block';t.style.opacity='1';
+  clearTimeout(t._hide);
+  t._hide=setTimeout(()=>{t.style.opacity='0';setTimeout(()=>{t.style.display='none';},300);},5000);
+}
+
+function resetBoard(){
+  if(!confirm('Reset the board? Every card is emptied (positions kept) and parked cards are removed. A JSON backup downloads first.'))return;
+  exportJSON(); // contingency backup before anything is touched
+  // remove parked (inventory) cards entirely
+  ENTS.filter(e=>e.type==='parked').forEach(ent=>{
+    delete state[ent.id];
+    if(state.positions) delete state.positions[ent.id];
+    if(!ent._dynamic){
+      if(!state.deletedIds) state.deletedIds=[];
+      if(!state.deletedIds.includes(ent.id)) state.deletedIds.push(ent.id);
+    }
+  });
+  ENTS=ENTS.filter(e=>e.type!=='parked');
+  // blank every remaining card in place — positions stay as they are.
+  // cleared:true stops backfillSeed() from re-seeding skill slots back in on next load.
+  ENTS.forEach(e=>{state[e.id]=defData(e.id);state[e.id].cleared=true;});
+  state.charBonus={damagePct:0,hpPct:0};
+  selId=null;_lastDeleted=null;
+  document.getElementById('reset-board-btn').style.display='none';
+  renderCards();
+  saveAll();
+  showToast('Board cleared — a backup of your build was downloaded.');
 }
 
 document.addEventListener('click',function(e){
@@ -1834,6 +2016,7 @@ function snap(v){return Math.round(v/GRID)*GRID;}
 let _drag=null, _dragMoved=false;
 function startDrag(ev,id){
   if(ev.pointerType==='mouse'&&ev.button!==0)return;
+  if(_pinchPts.size>=2)return; // second finger of a pinch, not a drag
   if(ev.target.closest('input,select,textarea,button,label.tcheck'))return;
   const e=ENTS.find(e=>e.id===id);
   const defPos=e?{x:e.x,y:e.y}:(id==='summary'?{x:SUM.x,y:SUM.y}:{x:0,y:0});
@@ -2030,12 +2213,46 @@ function applyZoomPan(){
 function fitToScreen(){
   const wrapW=_wrap.clientWidth, wrapH=_wrap.clientHeight;
   if(!wrapW||!wrapH) return;
-  const scale=Math.min(1,wrapW/CANVAS_W,wrapH/CANVAS_H);
-  _zoom=Math.min(2,Math.max(0.3,scale));
-  _panX=Math.max(0,(wrapW-CANVAS_W*_zoom)/2);
-  _panY=Math.max(0,(wrapH-CANVAS_H*_zoom)/2);
+  if(wrapW<700){
+    // Phone: fitting the whole 1800px board renders cards ~43px wide. Show ~3 card
+    // columns at a readable size instead; pan/pinch reaches the rest of the board.
+    _zoom=Math.min(2,Math.max(0.3,wrapW/480));
+    _panX=0;_panY=0;
+  }else{
+    const scale=Math.min(1,wrapW/CANVAS_W,wrapH/CANVAS_H);
+    _zoom=Math.min(2,Math.max(0.3,scale));
+    _panX=Math.max(0,(wrapW-CANVAS_W*_zoom)/2);
+    _panY=Math.max(0,(wrapH-CANVAS_H*_zoom)/2);
+  }
   _userZoomed=false;
   applyZoomPan();
+}
+
+// Center of the visible board area in canvas coordinates — new cards spawn here so
+// they never land off-screen when the board is zoomed/panned (esp. on phones).
+function viewportCenterOnCanvas(w,h){
+  const wrap=document.getElementById('canvas-wrap');
+  const wrapW=wrap?wrap.clientWidth:CANVAS_W, wrapH=wrap?wrap.clientHeight:CANVAS_H;
+  const cx=(wrapW/2-_panX)/_zoom, cy=(wrapH/2-_panY)/_zoom;
+  return {
+    x:snap(Math.max(10,Math.min(cx-w/2,CANVAS_W-w-10))),
+    y:snap(Math.max(10,Math.min(cy-h/2,CANVAS_H-h-10)))
+  };
+}
+
+// Pan so the card — including its expanded editor when selected — is fully visible.
+function panCardIntoView(id){
+  const el=document.querySelector(`#cards .ecard[data-eid="${id}"]`);
+  if(!el) return;
+  const wrapW=_wrap.clientWidth, wrapH=_wrap.clientHeight, pad=12;
+  const x0=el.offsetLeft*_zoom+_panX, y0=el.offsetTop*_zoom+_panY;
+  const x1=x0+el.offsetWidth*_zoom, y1=y0+el.offsetHeight*_zoom;
+  let dx=0, dy=0;
+  if(x1>wrapW-pad) dx=wrapW-pad-x1;
+  if(x0+dx<pad) dx=pad-x0;           // left/top edges win if the card is taller/wider than the viewport
+  if(y1>wrapH-pad) dy=wrapH-pad-y1;
+  if(y0+dy<pad) dy=pad-y0;
+  if(dx||dy){_panX+=dx;_panY+=dy;_userZoomed=true;applyZoomPan();}
 }
 const _wrap=document.getElementById('canvas-wrap');
 _wrap.addEventListener('wheel',function(e){
@@ -2054,6 +2271,7 @@ _wrap.addEventListener('wheel',function(e){
   applyZoomPan();
 },{passive:false});
 _wrap.addEventListener('pointerdown',function(e){
+  if(_pinchPts.size>=2) return;
   if(e.target.closest('.ecard')||(e.pointerType==='mouse'&&e.button!==0)) return;
   _panning=true;_panStartX=e.clientX;_panStartY=e.clientY;_panOrigX=_panX;_panOrigY=_panY;
   _wrap.style.cursor='grabbing';
@@ -2071,6 +2289,51 @@ function endPan(){
 }
 window.addEventListener('pointerup',endPan);
 window.addEventListener('pointercancel',endPan);
+
+// Two-finger pinch zoom for touch screens; tracked in capture phase so a pinch that
+// starts on a card zooms the board instead of dragging the card.
+const _pinchPts=new Map();
+let _pinchStart=null;
+_wrap.addEventListener('pointerdown',function(e){
+  if(e.pointerType!=='touch') return;
+  _pinchPts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(_pinchPts.size===2){
+    if(_drag){if(_drag.moved)queueSave();_drag=null;}
+    endPan();
+    const [a,b]=[..._pinchPts.values()];
+    const rect=_wrap.getBoundingClientRect();
+    _pinchStart={
+      dist:Math.max(1,Math.hypot(a.x-b.x,a.y-b.y)),
+      zoom:_zoom,panX:_panX,panY:_panY,
+      midX:(a.x+b.x)/2-rect.left,midY:(a.y+b.y)/2-rect.top
+    };
+  }
+},true);
+window.addEventListener('pointermove',function(e){
+  if(!_pinchPts.has(e.pointerId)) return;
+  _pinchPts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(_pinchPts.size!==2||!_pinchStart) return;
+  const [a,b]=[..._pinchPts.values()];
+  const dist=Math.hypot(a.x-b.x,a.y-b.y);
+  if(!dist) return;
+  const newZoom=Math.min(2,Math.max(0.3,_pinchStart.zoom*(dist/_pinchStart.dist)));
+  const rect=_wrap.getBoundingClientRect();
+  const mx=(a.x+b.x)/2-rect.left,my=(a.y+b.y)/2-rect.top;
+  // keep the canvas point that started under the pinch midpoint pinned to the moving midpoint
+  const cx=(_pinchStart.midX-_pinchStart.panX)/_pinchStart.zoom;
+  const cy=(_pinchStart.midY-_pinchStart.panY)/_pinchStart.zoom;
+  _panX=mx-cx*newZoom;
+  _panY=my-cy*newZoom;
+  _zoom=newZoom;
+  _userZoomed=true;
+  applyZoomPan();
+});
+function _pinchEnd(e){
+  _pinchPts.delete(e.pointerId);
+  if(_pinchPts.size<2) _pinchStart=null;
+}
+window.addEventListener('pointerup',_pinchEnd);
+window.addEventListener('pointercancel',_pinchEnd);
 
 // Drop an image of a gear card anywhere on the board to scan it (mirrors the Scan Gear button).
 // Global dragover/drop prevention stops the browser from navigating to the image if the drop misses.
