@@ -154,7 +154,9 @@ input[type="checkbox"] {
     <button onclick="layoutCleanup()" style="font-size:11px;padding:4px 8px;opacity:0.7;" title="Snap current card positions to grid without moving them out of place"><i class="ti ti-broom" aria-hidden="true"></i> Layout Clean-up</button>
     <button onclick="exportJSON()" style="font-size:11px;padding:4px 8px;" title="Download build as JSON"><i class="ti ti-download" aria-hidden="true"></i></button>
     <button onclick="document.getElementById('import-file').click()" style="font-size:11px;padding:4px 8px;" title="Import build from JSON"><i class="ti ti-upload" aria-hidden="true"></i></button>
-    <button onclick="resetBoard()" style="font-size:11px;padding:4px 8px;opacity:0.7;" title="Reset board — clears all saved data and restores seed"><i class="ti ti-trash-x" aria-hidden="true"></i></button>
+    <!-- Reset is collapsed behind the ⋯ toggle so it can't be clicked by accident -->
+    <button onclick="toggleResetBtn()" style="font-size:11px;padding:4px 8px;opacity:0.7;" title="More…"><i class="ti ti-dots-vertical" aria-hidden="true"></i></button>
+    <button id="reset-board-btn" onclick="resetBoard()" style="display:none;font-size:11px;padding:4px 8px;background:#5c1a1a !important;color:#f87171 !important;border-color:#7f1d1d !important;" title="Reset board — empties every card (positions kept) and removes parked cards. A JSON backup downloads first."><i class="ti ti-trash-x" aria-hidden="true"></i> Reset board</button>
     <input type="file" id="import-file" accept=".json" style="display:none;" onchange="importJSON(event)">
     <button id="undo-btn" onclick="undoDelete()" style="display:none;font-size:11px;padding:4px 8px;" title="Restore the last deleted card"><i class="ti ti-arrow-back-up" aria-hidden="true"></i> Undo delete</button>
     <span id="save-btn" style="font-size:11px;padding:4px 6px;opacity:0.5;"></span>
@@ -624,7 +626,8 @@ function backfillSeed(){
       if(s.slots){
         const cur=state[e.id].slots||[];
         const empty=cur.every(sl=>!sl.name||!sl.name.trim());
-        if(empty) state[e.id].slots=s.slots;
+        // cleared flag = the user reset the board on purpose; don't re-seed over it
+        if(empty&&!state[e.id].cleared) state[e.id].slots=s.slots;
       }
     }
   });
@@ -1927,16 +1930,52 @@ function importJSON(ev){
   ev.target.value='';
 }
 
-async function resetBoard(){
-  if(!confirm('Reset the whole board? This permanently clears all saved cards, positions and settings and restores the seed data.'))return;
-  try{
-    if(db){db.close();db=null;}
-    await new Promise(res=>{
-      const r=indexedDB.deleteDatabase('forge-master-v9');
-      r.onsuccess=res;r.onerror=res;r.onblocked=res;
-    });
-  }catch(e){}
-  location.reload();
+let _resetHideTimer=null;
+function toggleResetBtn(){
+  const b=document.getElementById('reset-board-btn');
+  const show=b.style.display==='none';
+  b.style.display=show?'inline-block':'none';
+  clearTimeout(_resetHideTimer);
+  // collapse again on its own so it doesn't linger as an accidental-click target
+  if(show) _resetHideTimer=setTimeout(()=>{b.style.display='none';},8000);
+}
+
+function showToast(msg){
+  let t=document.getElementById('toast');
+  if(!t){
+    t=document.createElement('div');
+    t.id='toast';
+    t.style.cssText='position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--surface-2);border:1px solid var(--border-strong);color:var(--text-primary);padding:8px 14px;border-radius:8px;font-size:11px;z-index:1000;box-shadow:0 4px 16px rgba(0,0,0,0.4);transition:opacity 0.3s;';
+    document.body.appendChild(t);
+  }
+  t.textContent=msg;
+  t.style.display='block';t.style.opacity='1';
+  clearTimeout(t._hide);
+  t._hide=setTimeout(()=>{t.style.opacity='0';setTimeout(()=>{t.style.display='none';},300);},5000);
+}
+
+function resetBoard(){
+  if(!confirm('Reset the board? Every card is emptied (positions kept) and parked cards are removed. A JSON backup downloads first.'))return;
+  exportJSON(); // contingency backup before anything is touched
+  // remove parked (inventory) cards entirely
+  ENTS.filter(e=>e.type==='parked').forEach(ent=>{
+    delete state[ent.id];
+    if(state.positions) delete state.positions[ent.id];
+    if(!ent._dynamic){
+      if(!state.deletedIds) state.deletedIds=[];
+      if(!state.deletedIds.includes(ent.id)) state.deletedIds.push(ent.id);
+    }
+  });
+  ENTS=ENTS.filter(e=>e.type!=='parked');
+  // blank every remaining card in place — positions stay as they are.
+  // cleared:true stops backfillSeed() from re-seeding skill slots back in on next load.
+  ENTS.forEach(e=>{state[e.id]=defData(e.id);state[e.id].cleared=true;});
+  state.charBonus={damagePct:0,hpPct:0};
+  selId=null;_lastDeleted=null;
+  document.getElementById('reset-board-btn').style.display='none';
+  renderCards();
+  saveAll();
+  showToast('Board cleared — a backup of your build was downloaded.');
 }
 
 document.addEventListener('click',function(e){
