@@ -147,7 +147,7 @@ input[type="checkbox"] {
       <span style="opacity:0.85;"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#DCA63B;margin-right:3px;vertical-align:middle;"></span>Near cap</span>
     </div>
     <button onclick="openNewCardModal()" style="font-size:11px;padding:4px 10px;" title="Add new card"><i class="ti ti-plus" aria-hidden="true"></i> New Card</button>
-    <button onclick="openScanModal()" style="font-size:11px;padding:4px 10px;" title="Scan a gear card from a photo — take a picture, choose an image, or drop one on the board"><i class="ti ti-camera" aria-hidden="true"></i> Scan Gear</button>
+    <button onclick="openScanModal()" style="font-size:11px;padding:4px 10px;" title="Scan a gear, pet or mount card from a photo — take a picture, choose an image, or drop one on the board"><i class="ti ti-camera" aria-hidden="true"></i> Scan Gear</button>
     <button onclick="fitToScreen()" style="font-size:11px;padding:4px 8px;opacity:0.7;" title="Scale the whole board to fit your screen"><i class="ti ti-arrows-diagonal-minimize-2" aria-hidden="true"></i> Fit Screen</button>
 
     <button onclick="layoutCleanup()" style="font-size:11px;padding:4px 8px;opacity:0.7;" title="Snap current card positions to grid without moving them out of place"><i class="ti ti-broom" aria-hidden="true"></i> Layout Clean-up</button>
@@ -187,7 +187,7 @@ input[type="checkbox"] {
 <!-- Scan gear modal -->
 <div id="scan-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:999;align-items:center;justify-content:center;">
   <div style="background:var(--surface-2);border:1px solid var(--border-strong);border-radius:12px;padding:24px 28px;width:360px;max-width:92vw;max-height:86vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.5);" onclick="event.stopPropagation()">
-    <div style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:4px;">Scan gear card</div>
+    <div style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:4px;">Scan gear, pet or mount card</div>
 
     <div id="scan-step-capture">
       <div style="font-size:10px;color:var(--text-muted);margin:2px 0 14px;">Best-effort OCR from a photo of the item's screen in-game. Always double-check the fields before saving.</div>
@@ -1587,13 +1587,22 @@ function parseGearOCR(rawText){
 }
 
 function scanTargetOptions(){
-  const existingGear=ENTS.filter(e=>e.type==='gear');
-  const existingOpts=existingGear.map(e=>{
+  const optsFor=types=>ENTS.filter(e=>types.includes(e.type)).map(e=>{
     const nm=state[e.id]&&state[e.id].name;
     return `<option value="${e.id}">${esc(e.label)}${nm?': '+esc(nm):''}</option>`;
   }).join('');
-  const newOpts=GEAR_PARTS.map(p=>`<option value="new:${p.k}">New ${esc(p.label)} card</option>`).join('');
-  return `<optgroup label="Update existing gear">${existingOpts}</optgroup><optgroup label="Create new">${newOpts}</optgroup>`;
+  const gearOpts=optsFor(['gear']);
+  const petOpts=optsFor(['pet']);
+  const mountOpts=optsFor(['mount']);
+  const parkedOpts=optsFor(['parked']);
+  const newOpts=GEAR_PARTS.map(p=>`<option value="new:${p.k}">New ${esc(p.label)} card</option>`).join('')
+    +`<option value="new:pet">New Pet card</option>`
+    +`<option value="new:mount">New Mount card</option>`;
+  return (gearOpts?`<optgroup label="Update existing gear">${gearOpts}</optgroup>`:'')
+    +(petOpts?`<optgroup label="Update existing pets">${petOpts}</optgroup>`:'')
+    +(mountOpts?`<optgroup label="Update existing mounts">${mountOpts}</optgroup>`:'')
+    +(parkedOpts?`<optgroup label="Update inventory (parked)">${parkedOpts}</optgroup>`:'')
+    +`<optgroup label="Create new">${newOpts}</optgroup>`;
 }
 
 function showScanReview(parsed){
@@ -1628,16 +1637,24 @@ function applyScanResult(){
   const targetVal=document.getElementById('scan-target').value;
   let id;
   if(targetVal.startsWith('new:')){
-    const part=GEAR_PARTS.find(p=>p.k===targetVal.slice(4));
-    if(!part){alert('Pick a card to update or create.');return;}
+    const key=targetVal.slice(4);
     const canvas=document.getElementById('canvas');
     const cW=canvas?canvas.clientWidth:800, cH=canvas?canvas.clientHeight:600;
-    id='gear_'+Date.now();
-    const w=145,h=116;
-    ENTS.push({id,label:part.label,type:'gear',icon:part.icon,slotIcon:part.slotIcon,x:Math.round(cW/2-w/2),y:Math.round(cH/2-h/2),w,h,_dynamic:true});
+    const w=145,h=116, x=Math.round(cW/2-w/2), y=Math.round(cH/2-h/2);
+    let newEnt;
+    if(key==='pet'||key==='mount'){
+      id=key+'_'+Date.now();
+      newEnt={id,label:TYPE_LABEL[key],type:key,icon:TYPE_ICON[key],x,y,w,h,_dynamic:true};
+    }else{
+      const part=GEAR_PARTS.find(p=>p.k===key);
+      if(!part){alert('Pick a card to update or create.');return;}
+      id='gear_'+Date.now();
+      newEnt={id,label:part.label,type:'gear',icon:part.icon,slotIcon:part.slotIcon,x,y,w,h,_dynamic:true};
+    }
+    ENTS.push(newEnt);
     state[id]=defData(id);
     if(!state.positions)state.positions={};
-    state.positions[id]={x:Math.round(cW/2-w/2),y:Math.round(cH/2-h/2)};
+    state.positions[id]={x,y};
   }else{
     id=targetVal;
     if(!id||!state[id]){alert('Pick a card to update or create.');return;}
