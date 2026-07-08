@@ -83,9 +83,8 @@ input[type="checkbox"] {
   accent-color: var(--theme-color, #378ADD);
 }
 
-#canvas-wrap { touch-action: none; }
 .ecard {
-  position: absolute;
+  position: relative;
   background: var(--surface-2);
   border: 0.5px solid var(--border);
   border-radius: 10px;
@@ -149,24 +148,22 @@ input[type="checkbox"] {
     </div>
     <button onclick="openNewCardModal()" style="font-size:11px;padding:4px 10px;" title="Add new card"><i class="ti ti-plus" aria-hidden="true"></i> New Card</button>
     <button onclick="openScanModal()" style="font-size:11px;padding:4px 10px;" title="Create a new gear, pet or mount card from a screenshot — choose an image, or drop one on the board. To update an existing card, use the camera button on the card itself."><i class="ti ti-camera" aria-hidden="true"></i> Scan Gear</button>
-    <button onclick="fitToScreen()" style="font-size:11px;padding:4px 8px;opacity:0.7;" title="Scale the whole board to fit your screen"><i class="ti ti-arrows-diagonal-minimize-2" aria-hidden="true"></i> Fit Screen</button>
-
-    <button onclick="layoutCleanup()" style="font-size:11px;padding:4px 8px;opacity:0.7;" title="Snap current card positions to grid without moving them out of place"><i class="ti ti-broom" aria-hidden="true"></i> Layout Clean-up</button>
     <button onclick="exportJSON()" style="font-size:11px;padding:4px 8px;" title="Download build as JSON"><i class="ti ti-download" aria-hidden="true"></i></button>
     <button onclick="document.getElementById('import-file').click()" style="font-size:11px;padding:4px 8px;" title="Import build from JSON"><i class="ti ti-upload" aria-hidden="true"></i></button>
+    <button onclick="downloadForgeMasterProfile()" style="font-size:11px;padding:4px 8px;opacity:0.7;" title="Export as a 1vcian/fm profile JSON (best-effort — gear/skills/tech tree map cleanly, pets/mounts round-trip by rarity+level+substats only)">FM ↓</button>
+    <button onclick="document.getElementById('import-fm-file').click()" style="font-size:11px;padding:4px 8px;opacity:0.7;" title="Import a 1vcian/fm profile JSON (best-effort — fields we don't track are ignored)">FM ↑</button>
     <!-- Reset is collapsed behind the ⋯ toggle so it can't be clicked by accident -->
     <button onclick="toggleResetBtn()" style="font-size:11px;padding:4px 8px;opacity:0.7;" title="More…"><i class="ti ti-dots-vertical" aria-hidden="true"></i></button>
-    <button id="reset-board-btn" onclick="resetBoard()" style="display:none;font-size:11px;padding:4px 8px;background:#5c1a1a !important;color:#f87171 !important;border-color:#7f1d1d !important;" title="Reset board — empties every card (positions kept) and removes parked cards. A JSON backup downloads first."><i class="ti ti-trash-x" aria-hidden="true"></i> Reset board</button>
+    <button id="reset-board-btn" onclick="resetBoard()" style="display:none;font-size:11px;padding:4px 8px;background:#5c1a1a !important;color:#f87171 !important;border-color:#7f1d1d !important;" title="Reset board — empties every card and removes parked cards. A JSON backup downloads first."><i class="ti ti-trash-x" aria-hidden="true"></i> Reset board</button>
     <input type="file" id="import-file" accept=".json" style="display:none;" onchange="importJSON(event)">
+    <input type="file" id="import-fm-file" accept=".json" style="display:none;" onchange="importForgeMasterProfileFile(event)">
     <button id="undo-btn" onclick="undoDelete()" style="display:none;font-size:11px;padding:4px 8px;" title="Restore the last deleted card"><i class="ti ti-arrow-back-up" aria-hidden="true"></i> Undo delete</button>
     <span id="save-btn" style="font-size:11px;padding:4px 6px;opacity:0.5;"></span>
   </div>
 </div>
 
-<div id="canvas-wrap" style="flex:1;min-height:0;overflow:hidden;">
-<div id="canvas" style="position:relative;width:1800px;height:1000px;background:var(--surface-1);border:2px solid #DCA63B;border-radius:12px;overflow:visible;transform-origin:0 0;">
-  <div id="cards"></div>
-</div>
+<div id="canvas-wrap" style="flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;">
+<div id="cards" style="display:flex;flex-wrap:wrap;align-content:flex-start;align-items:flex-start;gap:8px;padding:10px;"></div>
 </div>
 </div>
 
@@ -264,20 +261,20 @@ input[type="checkbox"] {
 
 <script>
 const SS=[
-  // Per-roll caps from Forge Master wiki (Substats page)
+  // Per-roll caps sourced from the game's own SecondaryStatLibrary config
   {k:'atkSpeed',    l:'Atk Speed',    max:40},
   {k:'doubleChance',l:'Double Chance',max:20},
   {k:'lifesteal',   l:'Lifesteal',    max:20},
   {k:'critChance',  l:'Crit Chance',  max:12},
   {k:'critDmg',     l:'Crit DMG',     max:80},
   {k:'dmg',         l:'DMG',          max:15},
-  {k:'rangedDmg',   l:'Ranged DMG',   max:25},
-  {k:'meleeDmg',    l:'Melee DMG',    max:25},
+  {k:'rangedDmg',   l:'Ranged DMG',   max:15},
+  {k:'meleeDmg',    l:'Melee DMG',    max:50},
   {k:'skillDmg',    l:'Skill DMG',    max:30},
   {k:'health',      l:'Health',       max:15},
   {k:'healthRegen', l:'Health Regen', max:4},
-  {k:'block',       l:'Block',        max:7},
-  {k:'cooldown',    l:'Skill CD',     max:6},
+  {k:'block',       l:'Block',        max:5},
+  {k:'cooldown',    l:'Skill CD',     max:7},
 ];
 // Build archetypes (community guidance: Atk Speed 100%+, Lifesteal 40%+, Double Chance to its
 // 100% effectiveness cap; Crit and Skill are the recognised endgame variants).
@@ -357,24 +354,80 @@ function cardRollCapLevel(e,d){
   return level;
 }
 
-const TN=[
-  {id:'w1',l:'Weapon I',   g:'Weapon',      stat:'damage', pct:2},
-  {id:'w2',l:'Weapon II',  g:'Weapon',      stat:'damage', pct:2},
-  {id:'w3',l:'Weapon III', g:'Weapon',      stat:'damage', pct:2},
-  {id:'g1',l:'Gloves I',   g:'Gloves',      stat:'damage', pct:2},
-  {id:'g2',l:'Gloves II',  g:'Gloves',      stat:'damage', pct:2},
-  {id:'g3',l:'Gloves III', g:'Gloves',      stat:'damage', pct:2},
-  {id:'hm',l:'Helmet mastery',g:'Helmet/Body', stat:'hp',   pct:2},
-  {id:'bm',l:'Body mastery',  g:'Helmet/Body', stat:'hp',   pct:2},
+// Tech Tree branches that feed into build totals, sourced from the game's real
+// TechTreeLibrary/TechTreePositionLibrary config. Every branch in the real game is
+// uniformly +2%/level (Value===ValueIncrease===0.02 for all of them), spread across 5
+// tiers of up to 5 levels each — so a branch's total investment caps at 25. Branches for
+// forge-calculator/gacha/timer/tech-research mechanics are intentionally excluded — out of
+// scope (no simulation/calculator features), and irrelevant to DMG/HP totals.
+const PCT_PER_TECH_LEVEL=2;
+const TECH_BRANCHES=[
+  {id:'weapon',   l:'Weapon Bonus',   slot:'weapon',   stat:'damage', cap:25},
+  {id:'helmet',   l:'Helmet Bonus',   slot:'helmet',   stat:'hp',     cap:25},
+  {id:'gloves',   l:'Glove Bonus',    slot:'gloves',   stat:'damage', cap:25},
+  {id:'body',     l:'Body Bonus',     slot:'body',     stat:'hp',     cap:25},
+  {id:'necklace', l:'Necklace Bonus', slot:'necklace', stat:'damage', cap:25},
+  {id:'ring',     l:'Ring Bonus',     slot:'ring',     stat:'damage', cap:25},
+  {id:'boots',    l:'Shoe Bonus',     slot:'boots',    stat:'hp',     cap:25},
+  {id:'pelvic',   l:'Belt Bonus',     slot:'pelvic',   stat:'hp',     cap:25},
+  {id:'mountDmg', l:'Mount Damage',   cat:'mount',  stat:'damage', cap:25},
+  {id:'mountHp',  l:'Mount Health',   cat:'mount',  stat:'hp',     cap:25},
+  {id:'skillDmg', l:'Skill Damage',   cat:'skills', stat:'damage', cap:25},
+  {id:'petDmg',   l:'Pet Damage',     cat:'pet',    stat:'damage', cap:25},
+  {id:'petHp',    l:'Pet Health',     cat:'pet',    stat:'hp',     cap:25},
 ];
-// Sum of Tech Tree mastery node percentages, split by which stat they boost (per Forge Master wiki: +2% per point)
-function techMasteryPct(nodes){
-  const p={damage:0,hp:0};
-  TN.forEach(n=>{if(nodes&&nodes[n.id])p[n.stat]+=n.pct;});
-  return p;
+function techBranchLevel(branches,id){
+  const b=TECH_BRANCHES.find(x=>x.id===id);
+  if(!b) return 0;
+  return Math.max(0,Math.min(b.cap,(branches&&branches[id])|0));
+}
+function techBranchPct(branches,id){
+  return techBranchLevel(branches,id)*PCT_PER_TECH_LEVEL;
 }
 
 const SK_TYPES=['Active','Passive','Ultimate'];
+
+// Real per-skill per-level Damage/Health, sourced from the game's own SkillLibrary config.
+// levelIdx = level-1 (level 1 = first table entry), matching the game's own indexing.
+const SKILLS_CATALOG={
+  Meat:{rarity:'Common',dmg:[],hp:[100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,123,124,125,126,127,128,130,131,132,133,134,136,137,138,140,141,142,143,145,146,148,149,150,152,153,155,156,157,159,160,162,163,165,166,168,169,171,173,174,176,178,179,181,183,184,186,188,189,191,193,195,197,198,200,202,204,206,208,210,212,214,216,218,220,222,224,226,228,230,232,234,237,239,241,243,245,248,250]},
+  Arrows:{rarity:'Common',dmg:[200,202,204,206,208,209,211,213,215,217,219,221,223,226,228,230,232,234,236,238,241,243,245,247,250,252,254,257,259,262,264,266,269,271,274,277,279,282,284,287,290,292,295,298,301,303,306,309,312,315,318,321,324,327,330,333,336,339,342,345,349,352,355,358,362,365,368,372,375,379,382,386,389,393,397,400,404,408,412,416,419,423,427,431,435,439,443,448,452,456,460,464,469,473,477,482,486,491,495,500],hp:[]},
+  Shout:{rarity:'Common',dmg:[150,151,153,154,156,157,159,160,162,163,165,166,168,169,171,172,174,176,177,179,181,182,184,186,187,189,191,193,194,196,198,200,202,204,205,207,209,211,213,215,217,219,221,223,225,228,230,232,234,236,238,241,243,245,247,250,252,254,257,259,261,264,266,269,271,274,276,279,281,284,287,289,292,295,298,300,303,306,309,312,315,317,320,323,326,329,333,336,339,342,345,348,352,355,358,361,365,368,372,375],hp:[]},
+  Berserk:{rarity:'Rare',dmg:[1280,1292,1304,1316,1328,1341,1353,1366,1378,1391,1404,1417,1430,1444,1457,1471,1484,1498,1512,1526,1540,1555,1569,1584,1598,1613,1628,1643,1659,1674,1690,1705,1721,1737,1753,1770,1786,1803,1820,1837,1854,1871,1888,1906,1924,1941,1959,1978,1996,2015,2033,2052,2071,2091,2110,2130,2150,2170,2190,2210,2231,2251,2272,2293,2315,2336,2358,2380,2402,2424,2447,2470,2493,2516,2539,2563,2587,2611,2635,2660,2684,2709,2734,2760,2786,2811,2838,2864,2891,2918,2945,2972,3000,3028,3056,3084,3113,3142,3171,3200],hp:[]},
+  Shuriken:{rarity:'Rare',dmg:[1280,1292,1304,1316,1328,1341,1353,1366,1378,1391,1404,1417,1430,1444,1457,1471,1484,1498,1512,1526,1540,1555,1569,1584,1598,1613,1628,1643,1659,1674,1690,1705,1721,1737,1753,1770,1786,1803,1820,1837,1854,1871,1888,1906,1924,1941,1959,1978,1996,2015,2033,2052,2071,2091,2110,2130,2150,2170,2190,2210,2231,2251,2272,2293,2315,2336,2358,2380,2402,2424,2447,2470,2493,2516,2539,2563,2587,2611,2635,2660,2684,2709,2734,2760,2786,2811,2838,2864,2891,2918,2945,2972,3000,3028,3056,3084,3113,3142,3171,3200],hp:[]},
+  CannonBarrage:{rarity:'Rare',dmg:[1280,1292,1304,1316,1328,1341,1353,1366,1378,1391,1404,1417,1430,1444,1457,1471,1484,1498,1512,1526,1540,1555,1569,1584,1598,1613,1628,1643,1659,1674,1690,1705,1721,1737,1753,1770,1786,1803,1820,1837,1854,1871,1888,1906,1924,1941,1959,1978,1996,2015,2033,2052,2071,2091,2110,2130,2150,2170,2190,2210,2231,2251,2272,2293,2315,2336,2358,2380,2402,2424,2447,2470,2493,2516,2539,2563,2587,2611,2635,2660,2684,2709,2734,2760,2786,2811,2838,2864,2891,2918,2945,2972,3000,3028,3056,3084,3113,3142,3171,3200],hp:[]},
+  Buff:{rarity:'Epic',dmg:[13500,13626,13752,13882,14010,14140,14272,14404,14538,14674,14808,14946,15088,15226,15370,15510,15654,15802,15948,16096,16246,16398,16548,16704,16860,17016,17176,17334,17494,17658,17820,17988,18154,18324,18496,18666,18840,19014,19192,19372,19552,19732,19914,20100,20286,20476,20668,20860,21054,21250,21448,21646,21846,22050,22254,22462,22672,22882,23094,23310,23526,23746,23968,24190,24414,24642,24870,25102,25336,25570,25810,26050,26290,26536,26782,27030,27282,27538,27792,28050,28312,28576,28840,29110,29380,29652,29928,30208,30486,30772,31056,31348,31638,31932,32230,32530,32832,33136,33444,33756],hp:[108000,109006,110020,111042,112074,113116,114168,115230,116302,117384,118476,119578,120690,121812,122944,124086,125242,126406,127582,128770,129966,131176,132394,133626,134868,136122,137388,138666,139956,141258,142572,143898,145236,146586,147948,149326,150714,152116,153532,154960,156400,157854,159322,160804,162300,163810,165334,166870,168420,169990,171568,173164,174774,176400,178042,179698,181368,183054,184756,186474,188208,189960,191728,193510,195310,197124,198958,200808,202678,204562,206464,208384,210322,212278,214252,216244,218256,220284,222334,224400,226488,228594,230722,232866,235032,237220,239424,241650,243898,246166,248454,250768,253098,255454,257830,260226,262648,265090,267552,270042]},
+  RainOfArrows:{rarity:'Epic',dmg:[135000,136258,137524,138802,140092,141396,142710,144040,145378,146730,148096,149472,150862,152266,153682,155110,156552,158008,159478,160960,162456,163968,165492,167032,168586,170154,171736,173334,174946,176572,178216,179872,181546,183234,184938,186658,188392,190146,191914,193698,195498,197316,199152,201004,202876,204760,206664,208588,210528,212484,214462,216456,218470,220500,222550,224620,226710,228820,230946,233094,235260,237450,239658,241888,244138,246406,248698,251010,253344,255702,258078,260478,262902,265348,267814,270306,272820,275356,277918,280504,283110,285744,288402,291084,293790,296524,299280,302064,304872,307708,310570,313458,316374,319314,322284,325282,328308,331360,334444,337552],hp:[]},
+  Thorns:{rarity:'Epic',dmg:[27648,27906,28164,28428,28692,28960,29226,29500,29772,30052,30330,30612,30898,31186,31474,31768,32062,32362,32662,32964,33270,33582,33894,34210,34528,34848,35172,35500,35830,36162,36498,36838,37180,37528,37876,38226,38584,38944,39304,39670,40038,40410,40786,41166,41550,41934,42324,42720,43116,43518,43924,44332,44742,45160,45580,46002,46432,46864,47298,47740,48180,48630,49084,49540,49998,50464,50934,51408,51886,52368,52854,53346,53842,54342,54850,55360,55872,56394,56916,57448,57982,58522,59064,59614,60168,60730,61294,61864,62440,63018,63606,64198,64794,65398,66004,66618,67236,67864,68494,69132],hp:[]},
+  Morale:{rarity:'Legendary',dmg:[150000,151500,153015,154545,156090,157651,159228,160820,162428,164052,165693,167350,169024,170714,172421,174145,175886,177645,179421,181215,183027,184857,186706,188573,190459,192364,194288,196231,198193,200175,202177,204199,206241,208303,210386,212490,214615,216761,218929,221118,223329,225562,227818,230096,232397,234721,237068,239439,241833,244251,246694,249161,251653,254170,256712,259279,261872,264491,267136,269807,272505,275230,277982,280762,283570,286406,289270,292163,295085,298036,301016,304026,307066,310137,313238,316370,319534,322729,325956,329216,332508,335833,339191,342583,346009,349469,352964,356494,360059,363660,367297,370970,374680,378427,382211,386033,389893,393792,397730,401707],hp:[1200000,1212000,1224120,1236360,1248720,1261208,1273824,1286560,1299424,1312416,1325544,1338800,1352192,1365712,1379368,1393160,1407088,1421160,1435368,1449720,1464216,1478856,1493648,1508584,1523672,1538912,1554304,1569848,1585544,1601400,1617416,1633592,1649928,1666424,1683088,1699920,1716920,1734088,1751432,1768944,1786632,1804496,1822544,1840768,1859176,1877768,1896544,1915512,1934664,1954008,1973552,1993288,2013224,2033360,2053696,2074232,2094976,2115928,2137088,2158456,2180040,2201840,2223856,2246096,2268560,2291248,2314160,2337304,2360680,2384288,2408128,2432208,2456528,2481096,2505904,2530960,2556272,2581832,2607648,2633728,2660064,2686664,2713528,2740664,2768072,2795752,2823712,2851952,2880472,2909280,2938376,2967760,2997440,3027416,3057688,3088264,3119144,3150336,3181840,3213656]},
+  Bomb:{rarity:'Legendary',dmg:[1200000,1210800,1221697,1232692,1243786,1254980,1266275,1277671,1289170,1300773,1312480,1324292,1336211,1348237,1360371,1372614,1384968,1397433,1410010,1422700,1435504,1448424,1461460,1474613,1487885,1501276,1514787,1528420,1542176,1556056,1570061,1584192,1598450,1612836,1627352,1641998,1656776,1671687,1686732,1701913,1717230,1732685,1748279,1764014,1779890,1795909,1812072,1828381,1844836,1861440,1878193,1895097,1912153,1929362,1946726,1964247,1981925,1999762,2017760,2035920,2054243,2072731,2091386,2110208,2129200,2148363,2167698,2187207,2206892,2226754,2246795,2267016,2287419,2308006,2328778,2349737,2370885,2392223,2413753,2435477,2457396,2479513,2501829,2524345,2547064,2569988,2593118,2616456,2640004,2663764,2687738,2711928,2736335,2760962,2785811,2810883,2836181,2861707,2887462,2913449],hp:[]},
+  Meteorite:{rarity:'Legendary',dmg:[2000000,2018000,2036162,2054487,2072977,2091634,2110459,2129453,2148618,2167956,2187468,2207155,2227019,2247062,2267286,2287692,2308281,2329056,2350018,2371168,2392509,2414042,2435768,2457690,2479809,2502127,2524646,2547368,2570294,2593427,2616768,2640319,2664082,2688059,2712252,2736662,2761292,2786144,2811219,2836520,2862049,2887807,2913797,2940021,2966481,2993179,3020118,3047299,3074725,3102398,3130320,3158493,3186919,3215601,3244541,3273742,3303206,3332935,3362931,3393197,3423736,3454550,3485641,3517012,3548665,3580603,3612828,3645343,3678151,3711254,3744655,3778357,3812362,3846673,3881293,3916225,3951471,3987034,4022917,4059123,4095655,4132516,4169709,4207236,4245101,4283307,4321857,4360754,4400001,4439601,4479557,4519873,4560552,4601597,4643011,4684798,4726961,4769504,4812430,4855742],hp:[]},
+  Stampede:{rarity:'Ultimate',dmg:[4000000,4036000,4072324,4108975,4145956,4183270,4220919,4258907,4297237,4335912,4374935,4414309,4454038,4494124,4534571,4575382,4616560,4658109,4700032,4742332,4785013,4828078,4871531,4915375,4959613,5004250,5049288,5094732,5140585,5186850,5233532,5280634,5328160,5376113,5424498,5473318,5522578,5572281,5622432,5673034,5724091,5775608,5827588,5880036,5932956,5986353,6040230,6094592,6149443,6204788,6260631,6316977,6373830,6431194,6489075,6547477,6606404,6665862,6725855,6786388,6847465,6909092,6971274,7034015,7097321,7161197,7225648,7290679,7356295,7422502,7489305,7556709,7624719,7693341,7762581,7832444,7902936,7974062,8045829,8118241,8191305,8265027,8339412,8414467,8490197,8566609,8643708,8721501,8799995,8879195,8959108,9039740,9121098,9203188,9286017,9369591,9453917,9539002,9624853,9711477],hp:[]},
+  Worm:{rarity:'Ultimate',dmg:[8000000,8072000,8144648,8217950,8291912,8366539,8441838,8517815,8594475,8671825,8749871,8828620,8908078,8988251,9069145,9150767,9233124,9316222,9400068,9484669,9570031,9656161,9743066,9830754,9919231,10008504,10098581,10189468,10281173,10373704,10467067,10561271,10656322,10752229,10848999,10946640,11045160,11144566,11244867,11346071,11448186,11551220,11655181,11760078,11865919,11972712,12080466,12189190,12298893,12409583,12521269,12633960,12747666,12862395,12978157,13094960,13212815,13331730,13451716,13572781,13694936,13818190,13942554,14068037,14194649,14322401,14451303,14581365,14712597,14845010,14978615,15113423,15249444,15386689,15525169,15664896,15805880,15948133,16091666,16236491,16382619,16530063,16678834,16828944,16980404,17133228,17287427,17443014,17600001,17758401,17918227,18079491,18242206,18406386,18572043,18739191,18907844,19078015,19249717,19422964],hp:[]},
+  Lightning:{rarity:'Ultimate',dmg:[4000000,4036000,4072324,4108975,4145956,4183270,4220919,4258907,4297237,4335912,4374935,4414309,4454038,4494124,4534571,4575382,4616560,4658109,4700032,4742332,4785013,4828078,4871531,4915375,4959613,5004250,5049288,5094732,5140585,5186850,5233532,5280634,5328160,5376113,5424498,5473318,5522578,5572281,5622432,5673034,5724091,5775608,5827588,5880036,5932956,5986353,6040230,6094592,6149443,6204788,6260631,6316977,6373830,6431194,6489075,6547477,6606404,6665862,6725855,6786388,6847465,6909092,6971274,7034015,7097321,7161197,7225648,7290679,7356295,7422502,7489305,7556709,7624719,7693341,7762581,7832444,7902936,7974062,8045829,8118241,8191305,8265027,8339412,8414467,8490197,8566609,8643708,8721501,8799995,8879195,8959108,9039740,9121098,9203188,9286017,9369591,9453917,9539002,9624853,9711477],hp:[]},
+  HigherMorale:{rarity:'Mythic',dmg:[8000000,8072000,8144648,8217950,8291912,8366539,8441838,8517815,8594475,8671825,8749871,8828620,8908078,8988251,9069145,9150767,9233124,9316222,9400068,9484669,9570031,9656161,9743066,9830754,9919231,10008504,10098581,10189468,10281173,10373704,10467067,10561271,10656322,10752229,10848999,10946640,11045160,11144566,11244867,11346071,11448186,11551220,11655181,11760078,11865919,11972712,12080466,12189190,12298893,12409583,12521269,12633960,12747666,12862395,12978157,13094960,13212815,13331730,13451716,13572781,13694936,13818190,13942554,14068037,14194649,14322401,14451303,14581365,14712597,14845010,14978615,15113423,15249444,15386689,15525169,15664896,15805880,15948133,16091666,16236491,16382619,16530063,16678834,16828944,16980404,17133228,17287427,17443014,17600001,17758401,17918227,18079491,18242206,18406386,18572043,18739191,18907844,19078015,19249717,19422964],hp:[64000000,64576000,65157184,65743600,66335296,66932312,67534704,68142520,68755800,69374600,69998968,70628960,71264624,71906008,72553160,73206136,73864992,74529776,75200544,75877352,76560248,77249288,77944528,78646032,79353848,80068032,80788648,81515744,82249384,82989632,83736536,84490168,85250576,86017832,86791992,87573120,88361280,89156528,89958936,90768568,91585488,92409760,93241448,94080624,94927352,95781696,96643728,97513520,98391144,99276664,100170152,101071680,101981328,102899160,103825256,104759680,105702520,106653840,107613728,108582248,109559488,110545520,111540432,112544296,113557192,114579208,115610424,116650920,117700776,118760080,119828920,120907384,121995552,123093512,124201352,125319168,126447040,127585064,128733328,129891928,131060952,132240504,133430672,134631552,135843232,137065824,138299416,139544112,140800008,142067208,143345816,144635928,145937648,147251088,148576344,149913528,151262752,152624120,153997736,155383712]},
+  StrafeRun:{rarity:'Mythic',dmg:[26000000,26234000,26470106,26708337,26948712,27191250,27435971,27682895,27932041,28183429,28437080,28693014,28951251,29211812,29474718,29739990,30007650,30277719,30550218,30825170,31102597,31382520,31664963,31949948,32237498,32527635,32820384,33115767,33413809,33714533,34017964,34324126,34633043,34944740,35259243,35576576,35896765,36219836,36545815,36874727,37206600,37541459,37879332,38220246,38564228,38911306,39261508,39614862,39971396,40331139,40694119,41060366,41429909,41802778,42179003,42558614,42941642,43328117,43718070,44111533,44508537,44909114,45313296,45721116,46132606,46547799,46966729,47389430,47815935,48246278,48680495,49118619,49560687,50006733,50456794,50910905,51369103,51831425,52297908,52768589,53243506,53722698,54206202,54694058,55186305,55682982,56184129,56689786,57199994,57714794,58234227,58758335,59287160,59820744,60359131,60902363,61450484,62003538,62561570,63124624],hp:[]},
+  Drone:{rarity:'Mythic',dmg:[30000000,30270000,30542430,30817312,31094668,31374520,31656891,31941803,32229279,32519343,32812017,33107325,33405291,33705939,34009292,34315376,34624214,34935832,35250254,35567506,35887614,36210603,36536498,36865326,37197114,37531888,37869675,38210502,38554397,38901387,39251499,39604762,39961205,40320856,40683744,41049898,41419347,41792121,42168250,42547764,42930694,43317070,43706924,44100286,44497189,44897664,45301743,45709459,46120844,46535932,46954755,47377348,47803744,48233978,48668084,49106097,49548052,49993984,50443930,50897925,51356006,51818210,52284574,52755135,53229931,53709000,54192381,54680112,55172233,55668783,56169802,56675330,57185408,57700077,58219378,58743352,59272042,59805490,60343739,60886833,61434814,61987727,62545617,63108528,63676505,64249594,64827840,65411291,65999993,66593993,67193339,67798079,68408262,69023936,69645151,70271957,70904405,71542545,72186428,72836106],hp:[]},
+};
+const SKILL_NAMES=Object.keys(SKILLS_CATALOG);
+function skillCatalogStats(name,level){
+  const c=SKILLS_CATALOG[name];
+  if(!c) return {dmg:0,hp:0};
+  const idx=Math.max(0,Math.min((level|0)-1,99));
+  return {dmg:c.dmg[idx]||0, hp:c.hp[idx]||0};
+}
+// Sum of all 3 equipped skill slots' catalog-derived damage/health.
+function skillsCardTotals(d){
+  const slots=(d&&d.slots)||[];
+  let dmg=0,hp=0;
+  slots.forEach(sk=>{
+    if(!sk.name) return;
+    const s=skillCatalogStats(sk.name,sk.level);
+    dmg+=s.dmg; hp+=s.hp;
+  });
+  return {damage:dmg,hp};
+}
+
 const RARITY_RANK={
   '':-1,
   Common:0, Uncommon:1, Rare:2, Epic:3, Legendary:4, Ultimate:5, Mythic:6,
@@ -464,42 +517,42 @@ function renderIcon(iconVal,col,fallbackIcon,size=14){
 
 let ENTS=[
   // Gear row 1: Head · Armor · Hands · Neck · Ring
-  {id:'helmet',  label:'Head',           type:'gear',     icon:'ti-helmet',      x:10,  y:10,  w:145,h:116},
-  {id:'body',    label:'Armor',          type:'gear',     icon:'ti-shield',      x:163, y:10,  w:145,h:116},
-  {id:'gloves',  label:'Hands',          type:'gear',     icon:'ti-hand-stop',   x:316, y:10,  w:145,h:116},
-  {id:'necklace',label:'Neck',           type:'gear',     icon:'ti-tie',         x:469, y:10,  w:145,h:116},
-  {id:'ring',    label:'Ring',           type:'gear',     icon:'ti-circle',      x:622, y:10,  w:145,h:116},
+  {id:'helmet',  label:'Head',           type:'gear',     icon:'ti-helmet',      w:145,h:116},
+  {id:'body',    label:'Armor',          type:'gear',     icon:'ti-shield',      w:145,h:116},
+  {id:'gloves',  label:'Hands',          type:'gear',     icon:'ti-hand-stop',   w:145,h:116},
+  {id:'necklace',label:'Neck',           type:'gear',     icon:'ti-tie',         w:145,h:116},
+  {id:'ring',    label:'Ring',           type:'gear',     icon:'ti-circle',      w:145,h:116},
   // Gear row 2: Weapon · Feet · Belt
-  {id:'weapon',  label:'Weapon',         type:'gear',     icon:'ti-sword',       x:10,  y:106, w:145,h:116},
-  {id:'boots',   label:'Feet',           type:'gear',     icon:'ti-shoe',        x:163, y:106, w:145,h:116},
-  {id:'pelvic',  label:'Belt',           type:'gear',     icon:'ti-label',       x:316, y:106, w:145,h:116},
-  {id:'mount1',  label:'Mount',          type:'mount',    icon:'ti-motorbike',   x:469, y:106, w:145,h:116},
-  {id:'inv1',    label:'Inventory 1',    type:'parked',   icon:'ti-archive',     x:163, y:536, w:145,h:116},
+  {id:'weapon',  label:'Weapon',         type:'gear',     icon:'ti-sword',       w:145,h:116},
+  {id:'boots',   label:'Feet',           type:'gear',     icon:'ti-shoe',        w:145,h:116},
+  {id:'pelvic',  label:'Belt',           type:'gear',     icon:'ti-label',       w:145,h:116},
+  {id:'mount1',  label:'Mount',          type:'mount',    icon:'ti-motorbike',   w:145,h:116},
+  {id:'inv1',    label:'Inventory 1',    type:'parked',   icon:'ti-archive',     w:145,h:116},
   // Pets — top right
-  {id:'pet1',    label:'Pet 1',          type:'pet',      icon:'ti-paw',         x:830, y:10,  w:145,h:116},
-  {id:'pet2',    label:'Pet 2',          type:'pet',      icon:'ti-paw',         x:830, y:106, w:145,h:116},
-  {id:'pet3',    label:'Pet 3',          type:'pet',      icon:'ti-paw',         x:830, y:202, w:145,h:116},
-  {id:'inv2',    label:'Inventory 2',    type:'parked',   icon:'ti-archive',     x:830, y:298, w:145,h:116},
-  {id:'inv3',    label:'Inventory 3',    type:'parked',   icon:'ti-archive',     x:830, y:394, w:145,h:116},
-  {id:'inv4',    label:'Inventory 4',    type:'parked',   icon:'ti-archive',     x:830, y:490, w:145,h:116},
+  {id:'pet1',    label:'Pet 1',          type:'pet',      icon:'ti-paw',         w:145,h:116},
+  {id:'pet2',    label:'Pet 2',          type:'pet',      icon:'ti-paw',         w:145,h:116},
+  {id:'pet3',    label:'Pet 3',          type:'pet',      icon:'ti-paw',         w:145,h:116},
+  {id:'inv2',    label:'Inventory 2',    type:'parked',   icon:'ti-archive',     w:145,h:116},
+  {id:'inv3',    label:'Inventory 3',    type:'parked',   icon:'ti-archive',     w:145,h:116},
+  {id:'inv4',    label:'Inventory 4',    type:'parked',   icon:'ti-archive',     w:145,h:116},
   // Inventory & Skills — second column from right
-  {id:'inv5',    label:'Inventory 5',    type:'parked',   icon:'ti-archive',     x:677, y:10,  w:145,h:116},
-  {id:'inv6',    label:'Inventory 6',    type:'parked',   icon:'ti-archive',     x:677, y:106, w:145,h:116},
-  {id:'inv7',    label:'Inventory 7',    type:'parked',   icon:'ti-archive',     x:677, y:202, w:145,h:116},
-  {id:'inv8',    label:'Inventory 8',    type:'parked',   icon:'ti-archive',     x:677, y:298, w:145,h:116},
+  {id:'inv5',    label:'Inventory 5',    type:'parked',   icon:'ti-archive',     w:145,h:116},
+  {id:'inv6',    label:'Inventory 6',    type:'parked',   icon:'ti-archive',     w:145,h:116},
+  {id:'inv7',    label:'Inventory 7',    type:'parked',   icon:'ti-archive',     w:145,h:116},
+  {id:'inv8',    label:'Inventory 8',    type:'parked',   icon:'ti-archive',     w:145,h:116},
   // New pets
-  {id:'pet4',    label:'Pet 4',          type:'pet',      icon:'ti-paw',         x:830, y:298, w:145,h:116},
-  {id:'pet5',    label:'Pet 5',          type:'pet',      icon:'ti-paw',         x:830, y:394, w:145,h:116},
-  {id:'inv9',    label:'Inventory 9',    type:'parked',   icon:'ti-archive',     x:677, y:394, w:145,h:116},
-  {id:'inv10',   label:'Inventory 10',   type:'parked',   icon:'ti-archive',     x:677, y:490, w:145,h:116},
-  {id:'inv11',   label:'Inventory 11',   type:'parked',   icon:'ti-archive',     x:677, y:586, w:145,h:116},
-  {id:'inv12',   label:'Inventory 12',   type:'parked',   icon:'ti-archive',     x:830, y:490, w:145,h:116},
-  {id:'inv13',   label:'Inventory 13',   type:'parked',   icon:'ti-archive',     x:830, y:586, w:145,h:116},
-  {id:'skills',  label:'Skills',         type:'skills',   icon:'ti-bolt',        x:677, y:682, w:145,h:116},
-  {id:'techtree',label:'Tech Tree',      type:'techtree', icon:'ti-sitemap',     x:677, y:518, w:145,h:116},
-  {id:'ascension',label:'Ascension',     type:'ascension',icon:'ti-stairs-up',   x:524, y:600, w:145,h:116},
+  {id:'pet4',    label:'Pet 4',          type:'pet',      icon:'ti-paw',         w:145,h:116},
+  {id:'pet5',    label:'Pet 5',          type:'pet',      icon:'ti-paw',         w:145,h:116},
+  {id:'inv9',    label:'Inventory 9',    type:'parked',   icon:'ti-archive',     w:145,h:116},
+  {id:'inv10',   label:'Inventory 10',   type:'parked',   icon:'ti-archive',     w:145,h:116},
+  {id:'inv11',   label:'Inventory 11',   type:'parked',   icon:'ti-archive',     w:145,h:116},
+  {id:'inv12',   label:'Inventory 12',   type:'parked',   icon:'ti-archive',     w:145,h:116},
+  {id:'inv13',   label:'Inventory 13',   type:'parked',   icon:'ti-archive',     w:145,h:116},
+  {id:'skills',  label:'Skills',         type:'skills',   icon:'ti-bolt',        w:145,h:116},
+  {id:'techtree',label:'Tech Tree',      type:'techtree', icon:'ti-sitemap',     w:145,h:116},
+  {id:'ascension',label:'Ascension',     type:'ascension',icon:'ti-stairs-up',   w:145,h:116},
 ];
-const SUM={x:403,y:567,w:Math.round(334*1.2),h:Math.round(200*1.2)};
+const SUM={w:Math.round(334*1.2),h:Math.round(200*1.2)};
 const CARD_W=145;
 
 const SEED={
@@ -535,7 +588,7 @@ const SEED={
   inv12:    {name:'Enchanted Elk',       level:1,   rarity:'Ultimate',     slots:['rangedDmg','lifesteal'],      substats:{rangedDmg:14.7,    lifesteal:15.1},    damage:45e6,   hp:360e6},
   inv13:    {name:'Enchanted Elk',       level:1,   rarity:'Ultimate',     slots:['meleeDmg','atkSpeed'],        substats:{meleeDmg:37.1,     atkSpeed:13},       damage:45e6,   hp:360e6},
 
-  skills:   {damage:1.28e6, hp:10.2e6, slots:[{name:'Bomb',level:15,stype:'Active',damage:353e3,hp:2.82e6},{name:'Morale',level:17,stype:'Active',damage:360e3,hp:2.88e6},{name:'Meteorite',level:15,stype:'Active',damage:353e3,hp:2.82e6}]},
+  skills:   {slots:[{name:'Bomb',level:15},{name:'Morale',level:17},{name:'Meteorite',level:15}]},
 };
 
 let state={}, selId=null, db=null, _saveTimer=null;
@@ -572,8 +625,8 @@ function queueSave(){clearTimeout(_saveTimer);_saveTimer=setTimeout(()=>{if(db)s
 
 function defData(id){
   const e=ENTS.find(e=>e.id===id);
-  if(e.type==='skills') return {slots:Array(3).fill(0).map(()=>({name:'',level:0,stype:'Active',damage:0,hp:0})),damage:0,hp:0};
-  if(e.type==='techtree') return {nodes:{}};
+  if(e.type==='skills') return {slots:Array(3).fill(0).map(()=>({name:'',level:1}))};
+  if(e.type==='techtree') return {branches:{}};
   if(e.type==='ascension') return {
     stars:{forge:0,pets:0,skills:0,mounts:0},
     forgeLevel:1, petSummonLevel:1, skillSummonLevel:1, mountSummonLevel:1,
@@ -582,20 +635,6 @@ function defData(id){
   SS.forEach(s=>d.substats[s.k]=0);
   return d;
 }
-
-const DEFAULT_REF_POSITIONS={
-  helmet:{x:10,y:10},body:{x:163,y:10},gloves:{x:316,y:10},necklace:{x:469,y:10},ring:{x:622,y:10},
-  weapon:{x:10,y:106},boots:{x:163,y:106},pelvic:{x:316,y:106},
-  mount1:{x:16,y:296},inv1:{x:163,y:394},
-  pet1:{x:1081,y:10},  pet2:{x:1234,y:10},  inv5:{x:1387,y:10},
-  inv2:{x:1081,y:106}, inv3:{x:1234,y:106}, inv4:{x:1387,y:106},
-  pet3:{x:1081,y:202}, inv8:{x:1234,y:202}, inv7:{x:1387,y:202},
-  inv6:{x:1081,y:298}, pet4:{x:1234,y:298}, pet5:{x:1387,y:298},
-  inv9:{x:1081,y:394}, inv10:{x:1234,y:394},inv11:{x:1387,y:394},
-  inv12:{x:1081,y:490},inv13:{x:1234,y:490},
-  skills:{x:648,y:680},techtree:{x:856,y:680},ascension:{x:440,y:680},
-  summary:{x:622,y:394}
-};
 
 function initState(){
   ENTS.forEach(e=>{
@@ -680,10 +719,6 @@ async function loadDB(){
       r.onsuccess=()=>{if(r.result)state[e.id]=r.result.data;res();};
       r.onerror=()=>res();
     })),new Promise(res=>{
-      const r=st.get('_positions');
-      r.onsuccess=()=>{if(r.result)state.positions=r.result.data;res();};
-      r.onerror=()=>res();
-    }),new Promise(res=>{
       const r=st.get('_charBonus');
       r.onsuccess=()=>{if(r.result)state.charBonus=r.result.data;res();};
       r.onerror=()=>res();
@@ -699,7 +734,6 @@ async function saveAll(){
   if(!db){btn.textContent='No DB';setTimeout(()=>{btn.innerHTML='<i class="ti ti-device-floppy" aria-hidden="true"></i> Save';},2000);return;}
   const tx=db.transaction('items','readwrite'),st=tx.objectStore('items');
   ENTS.forEach(e=>st.put({id:e.id,data:state[e.id]}));
-  st.put({id:'_positions',data:state.positions||{}});
   st.put({id:'_dynEnts',data:ENTS.filter(e=>e._dynamic)});
   st.put({id:'_deletedIds',data:state.deletedIds||[]});
   st.put({id:'_charBonus',data:state.charBonus||{damagePct:0,hpPct:0}});
@@ -739,23 +773,82 @@ function esc(s){
 
 function totals(){
   const t={damage:0,hp:0};SS.forEach(s=>t[s.k]=0);
+  // Tech Tree bonuses are per-target in the real game (a "Weapon Bonus" branch only boosts
+  // the Weapon slot's own damage) rather than one flat bonus over the whole build — so gear
+  // gets a per-slot multiplier, while mount/skills/pet get one multiplier for their category
+  // (mathematically identical to applying it per-item in that category, since multiplication
+  // distributes over the sum — simpler to apply once to the category's summed contribution).
+  const branches=(state.techtree&&state.techtree.branches)||{};
+  const gearMult={};
+  TECH_BRANCHES.forEach(b=>{if(b.slot) gearMult[b.slot]={stat:b.stat,mult:1+techBranchPct(branches,b.id)/100};});
+  const catMult={
+    mount:{damage:1+techBranchPct(branches,'mountDmg')/100, hp:1+techBranchPct(branches,'mountHp')/100},
+    skills:{damage:1+techBranchPct(branches,'skillDmg')/100},
+    pet:{damage:1+techBranchPct(branches,'petDmg')/100, hp:1+techBranchPct(branches,'petHp')/100},
+  };
   ENTS.filter(e=>['gear','mount','pet','parked','skills'].includes(e.type)).forEach(e=>{
     const d=state[e.id];
     if(!d) return;
     if(e.type!=='skills' && d.status==='parked') return;
     if(d.substats)SS.forEach(s=>{t[s.k]+=(parseFloat(d.substats[s.k])||0);});
-    t.damage+=(parseFloat(d.damage)||0);
-    t.hp+=(parseFloat(d.hp)||0);
+    let dmg,hp;
+    if(e.type==='skills'){
+      const st=skillsCardTotals(d);
+      dmg=st.damage*catMult.skills.damage; hp=st.hp;
+    }else{
+      dmg=parseFloat(d.damage)||0; hp=parseFloat(d.hp)||0;
+      if(e.type==='gear'){
+        const gb=gearMult[e.id];
+        if(gb){ if(gb.stat==='damage') dmg*=gb.mult; else hp*=gb.mult; }
+      }else if(e.type==='mount'){
+        dmg*=catMult.mount.damage; hp*=catMult.mount.hp;
+      }else if(e.type==='pet'||e.type==='parked'){
+        dmg*=catMult.pet.damage; hp*=catMult.pet.hp;
+      }
+    }
+    t.damage+=dmg; t.hp+=hp;
   });
-  // Apply Tech Tree mastery % (unlocked nodes) and manual level bonus % on top of the flat item totals.
+  // Manual level bonus % (Forge Level) still applies flat on top — not derivable from real
+  // tech-tree data, kept as a manual override same as before.
   // NOTE: Ascension is NOT applied here — the DMG/HP you enter on each card already reflects your
   // real, current in-game stats (including any ascension boost already active on that item/pet/skill/mount).
   // Multiplying again here would double-count the boost and produce meaningless numbers.
-  const techPct=techMasteryPct(state.techtree&&state.techtree.nodes);
   const lvlBonus=state.charBonus||{damagePct:0,hpPct:0};
-  t.damage=t.damage*(1+(techPct.damage+(parseFloat(lvlBonus.damagePct)||0))/100);
-  t.hp=t.hp*(1+(techPct.hp+(parseFloat(lvlBonus.hpPct)||0))/100);
+  t.damage=t.damage*(1+(parseFloat(lvlBonus.damagePct)||0)/100);
+  t.hp=t.hp*(1+(parseFloat(lvlBonus.hpPct)||0)/100);
   return t;
+}
+
+// Per-card power score (damage + hp + substats, unweighted) — mirrors totals()'s
+// per-card contribution, used to pick which equipped card to drop when a pool is over cap.
+function cardValue(id){
+  const d=state[id];
+  if(!d) return 0;
+  let v=(parseFloat(d.damage)||0)+(parseFloat(d.hp)||0);
+  if(d.substats) SS.forEach(s=>v+=(parseFloat(d.substats[s.k])||0));
+  return v;
+}
+const isPetType=t=>t==='pet'||t==='parked';
+
+// Parks the lowest-value equipped card(s) in a type pool until it's back within `max`.
+// opts.exemptId excludes a card from ever being dropped/counted (the card just chosen to
+// equip) — that turns this same loop into "new pick always wins" for the interactive case;
+// omitted, it's a general cap-cleanup pass for bulk mutations (import, duplicate, etc).
+function enforceEquipCap(typeMatch,max,opts={}){
+  const exemptId=opts.exemptId;
+  // The exempt card (just equipped) always occupies one of the `max` slots, so the
+  // rest of the pool must be capped one lower to leave room for it.
+  const effectiveMax=exemptId?max-1:max;
+  const pool=ENTS.filter(e=>typeMatch(e.type)&&e.id!==exemptId);
+  let equipped=pool.filter(e=>(state[e.id]?.status||'equipped')==='equipped');
+  while(equipped.length>effectiveMax){
+    let minVal=Infinity;
+    equipped.forEach(e=>{const v=cardValue(e.id); if(v<minVal) minVal=v;});
+    const lowest=equipped.filter(e=>cardValue(e.id)===minVal);
+    const drop=lowest[Math.floor(Math.random()*lowest.length)];
+    state[drop.id].status='parked';
+    equipped=equipped.filter(e=>e.id!==drop.id);
+  }
 }
 
 function cardBody(e,d,isSel,buildTotals){
@@ -764,19 +857,27 @@ function cardBody(e,d,isSel,buildTotals){
   if(e.type==='skills'){
     const slots=d.slots||[],filled=slots.filter(s=>s.name&&s.name.trim()).length;
     const names=slots.filter(s=>s.name&&s.name.trim()).map(s=>{
-      const sd=parseFloat(s.damage)||0,sh=parseFloat(s.hp)||0;
+      const {dmg:sd,hp:sh}=skillCatalogStats(s.name,s.level);
       const stats=(sd||sh)?` <span style="font-size:8px;color:var(--text-muted);">${sd?'⚔'+fmtBig(sd):''}${sd&&sh?' ':''}${sh?'♥'+fmtBig(sh):''}</span>`:'';
       return `<div style="font-size:10px;color:var(--text-secondary);padding:1px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(s.name)} <span style="font-weight:500;color:var(--text-primary);">Lv${s.level}</span>${stats}</div>`;
     }).join('');
-    const dmgV=parseFloat(d.damage)||0,hpV=parseFloat(d.hp)||0;
+    const {damage:dmgV,hp:hpV}=skillsCardTotals(d);
     const statsRow=(dmgV||hpV)?`<div style="display:flex;gap:8px;font-size:10px;color:var(--text-secondary);padding:1px 0;margin-bottom:2px;">${dmgV?`<span>⚔ <span style="font-weight:500;color:var(--text-primary);">${fmtBig(dmgV)}</span></span>`:''} ${hpV?`<span>♥ <span style="font-weight:500;color:var(--text-primary);">${fmtBig(hpV)}</span></span>`:''}</div>`:'';
     return `<div style="padding:3px 9px 8px;">${statsRow}<div style="font-size:10px;color:var(--text-muted);margin-bottom:2px;">${filled}/3 configured</div>${names||'<div style="font-size:10px;color:var(--text-muted);font-style:italic;">tap to edit</div>'}</div>`;
   }
   if(e.type==='techtree'){
-    const nodes=d.nodes||{},unlocked=TN.filter(n=>nodes[n.id]).length;
-    const groups=[...new Set(TN.map(n=>n.g))];
-    const lines=groups.map(g=>{const gn=TN.filter(n=>n.g===g),done=gn.filter(n=>nodes[n.id]).length,full=done===gn.length;return `<div style="font-size:10px;color:${full?'#2ACC97':'var(--text-secondary)'};padding:1px 0;">${g}: ${done}/${gn.length}${full?' ✓':''}</div>`;}).join('');
-    return `<div style="padding:3px 9px 8px;"><div style="height:3px;background:var(--surface-0);border-radius:2px;overflow:hidden;margin-bottom:5px;"><div style="width:${Math.min(100,(unlocked/TN.length)*100)}%;height:100%;background:#185FA5;border-radius:2px;"></div></div>${lines}</div>`;
+    const branches=d.branches||{};
+    const groupDefs=[['Gear',b=>!!b.slot],['Mount',b=>b.cat==='mount'],['Skill',b=>b.cat==='skills'],['Pet',b=>b.cat==='pet']];
+    const totalLvl=TECH_BRANCHES.reduce((s,b)=>s+techBranchLevel(branches,b.id),0);
+    const totalCap=TECH_BRANCHES.reduce((s,b)=>s+b.cap,0);
+    const lines=groupDefs.map(([label,match])=>{
+      const gb=TECH_BRANCHES.filter(match);
+      const lvl=gb.reduce((s,b)=>s+techBranchLevel(branches,b.id),0);
+      const cap=gb.reduce((s,b)=>s+b.cap,0);
+      const full=lvl===cap;
+      return `<div style="font-size:10px;color:${full?'#2ACC97':'var(--text-secondary)'};padding:1px 0;">${label}: ${lvl}/${cap}${full?' ✓':''}</div>`;
+    }).join('');
+    return `<div style="padding:3px 9px 8px;"><div style="height:3px;background:var(--surface-0);border-radius:2px;overflow:hidden;margin-bottom:5px;"><div style="width:${Math.min(100,(totalLvl/totalCap)*100)}%;height:100%;background:#185FA5;border-radius:2px;"></div></div>${lines}</div>`;
   }
   if(e.type==='ascension'){
     const stars=d.stars||{},prog=ascensionProgress();
@@ -840,35 +941,27 @@ function makeInlineEditor(e,d){
   let content = '';
   const isMount=e.type==='mount', isPet=e.type==='pet', isParked=e.type==='parked';
   if(e.type==='skills'){
-    const slots=d.slots||Array(3).fill(0).map(()=>({name:'',level:1,stype:'Active',damage:0,hp:0}));
+    const slots=d.slots||Array(3).fill(0).map(()=>({name:'',level:1}));
+    const {damage:totalDmg,hp:totalHp}=skillsCardTotals(d);
+    const skillOptions=cur=>`<option value=""${!cur?' selected':''}>— Skill —</option>`+
+      SKILL_NAMES.map(n=>`<option value="${n}"${n===cur?' selected':''}>${n} (${SKILLS_CATALOG[n].rarity})</option>`).join('');
     content=`
-      <div style="margin-top:4px;display:grid;grid-template-columns:1fr 1fr;gap:4px;">
-        <div class="in-row">
-          <span style="font-size:10px;color:var(--text-muted);">⚔</span>
-          <input id="ef-skills-damage" type="text" placeholder="DMG (e.g. 13.5m)" value="${d.damage?fmtBig(d.damage):''}" onchange="updField('skills','damage',parseBig(this.value),this)" class="ef-in ta-r">
-        </div>
-        <div class="in-row">
-          <span style="font-size:10px;color:var(--text-muted);">♥</span>
-          <input id="ef-skills-hp" type="text" placeholder="HP (e.g. 7b)" value="${d.hp?fmtBig(d.hp):''}" onchange="updField('skills','hp',parseBig(this.value),this)" class="ef-in ta-r">
-        </div>
+      <div style="font-size:9px;color:var(--text-muted);margin:2px 0 6px;">Damage/Health are looked up from each skill's real level table — no manual entry.</div>
+      <div style="display:flex;gap:10px;font-size:10px;color:var(--text-secondary);margin-bottom:4px;">
+        <span>⚔ <span style="font-weight:600;color:var(--text-primary);">${totalDmg?fmtBig(totalDmg):'—'}</span></span>
+        <span>♥ <span style="font-weight:600;color:var(--text-primary);">${totalHp?fmtBig(totalHp):'—'}</span></span>
       </div>
       <div style="font-size:10px;font-weight:500;color:var(--text-secondary);margin:6px 0 2px;">Equipped Skills</div>`
-      +slots.map((sk,i)=>`<div style="margin:3px 0;">
+      +slots.map((sk,i)=>{
+        const {dmg,hp}=skillCatalogStats(sk.name,sk.level);
+        return `<div style="margin:3px 0;">
         <div style="display:grid;grid-template-columns:1fr 42px;gap:4px;">
-          <input id="ef-skill-${i}-name" type="text" placeholder="Skill ${i+1}" value="${esc(sk.name||'')}" onchange="updSkill(${i},'name',this.value,this)" class="ef-in">
-          <input id="ef-skill-${i}-level" type="number" value="${sk.level||''}" min="0" max="99" placeholder="Lv" onchange="updSkill(${i},'level',+this.value||0,this)" class="ef-in ta-c">
+          <select id="ef-skill-${i}-name" onchange="updSkill(${i},'name',this.value,this)" class="ef-in">${skillOptions(sk.name)}</select>
+          <input id="ef-skill-${i}-level" type="number" value="${sk.level||1}" min="1" max="100" placeholder="Lv" onchange="updSkill(${i},'level',Math.max(1,Math.min(100,+this.value||1)),this)" class="ef-in ta-c"${sk.name?'':' disabled'}>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:2px;">
-          <div class="in-row">
-            <span style="font-size:10px;color:var(--text-muted);">⚔</span>
-            <input id="ef-skill-${i}-damage" type="text" placeholder="DMG" value="${sk.damage?fmtBig(sk.damage):''}" onchange="updSkill(${i},'damage',parseBig(this.value),this)" class="ef-in ta-r">
-          </div>
-          <div class="in-row">
-            <span style="font-size:10px;color:var(--text-muted);">♥</span>
-            <input id="ef-skill-${i}-hp" type="text" placeholder="HP" value="${sk.hp?fmtBig(sk.hp):''}" onchange="updSkill(${i},'hp',parseBig(this.value),this)" class="ef-in ta-r">
-          </div>
-        </div>
-      </div>`).join('');
+        <div style="display:flex;gap:8px;font-size:9px;color:var(--text-muted);margin-top:2px;">${sk.name?`<span>⚔ ${fmtBig(dmg)}</span><span>♥ ${fmtBig(hp)}</span>`:''}</div>
+      </div>`;
+      }).join('');
   } else if(e.type==='ascension'){
     const stars=d.stars||{},prog=ascensionProgress();
     content=`<div style="font-size:9px;color:var(--text-muted);margin:2px 0 6px;display:flex;align-items:center;gap:4px;">
@@ -895,10 +988,17 @@ function makeInlineEditor(e,d){
       </div>`;
     }).join('');
   } else if(e.type==='techtree'){
-    const nodes=d.nodes||{};
+    const branches=d.branches||{};
+    content=`<div style="font-size:9px;color:var(--text-muted);margin:2px 0 6px;">Total level invested per branch (0–${TECH_BRANCHES[0].cap}) — the app looks up the real +${PCT_PER_TECH_LEVEL}%/level bonus, no manual % entry.</div>`;
+    content+=TECH_BRANCHES.map(b=>{
+      const lvl=techBranchLevel(branches,b.id), pct=lvl*PCT_PER_TECH_LEVEL;
+      return `<div class="in-row" style="margin:3px 0;">
+        <span style="font-size:10px;color:var(--text-secondary);flex:1;">${b.l}</span>
+        <input id="ef-tech-${b.id}" type="number" min="0" max="${b.cap}" value="${lvl||''}" placeholder="0" onchange="updTechBranch('${b.id}',+this.value||0,this)" style="font-size:10px;padding:2px 4px;width:44px;box-sizing:border-box;text-align:center;">
+        <span style="font-size:9px;color:var(--text-muted);width:36px;text-align:right;flex-shrink:0;">+${fmtVal(pct)}%</span>
+      </div>`;
+    }).join('');
     const cb=state.charBonus||{damagePct:0,hpPct:0};
-    content=`<div style="font-size:9px;color:var(--text-muted);margin:4px 0 6px;">Skip Skill DMG nodes</div>`;
-    content+=TN.map(n=>`<label class="tcheck" style="gap:4px;font-size:10px;margin:2px 0;"><input id="ef-tech-${n.id}" type="checkbox" ${nodes[n.id]?'checked':''} onchange="updTechNode('${n.id}',this.checked,this)" style="margin:0;transform:scale(0.85);"><span>${n.l} (+${n.pct}% ${n.stat==='damage'?'DMG':'HP'})</span></label>`).join('');
     content+=`<div style="font-size:10px;font-weight:500;color:var(--text-secondary);margin:8px 0 2px;">Character Level Bonus</div>
       <div style="font-size:9px;color:var(--text-muted);margin-bottom:4px;">Manual % from Forge Level (not derivable from checkboxes)</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;">
@@ -970,20 +1070,11 @@ function makeInlineEditor(e,d){
 
   const curStatus=(d.status||'equipped');
   const showStatus=isMount||isPet||isParked;
-  let equipDisabled=false, equipLabel='Equipped';
-  if((isPet||isParked)&&curStatus!=='equipped'){
-    const eqCount=ENTS.filter(x=>(x.type==='pet'||x.type==='parked')&&(state[x.id]?.status||'equipped')==='equipped').length;
-    equipDisabled=eqCount>=3;
-    if(equipDisabled) equipLabel='Full (3/3)';
-  }
-  if(isMount&&curStatus!=='equipped'){
-    const mountEq=ENTS.filter(x=>x.type==='mount'&&(state[x.id]?.status||'equipped')==='equipped').length;
-    equipDisabled=mountEq>=1;
-    if(equipDisabled) equipLabel='Full (1/1)';
-  }
+  // Equipping past the cap is allowed — it swaps out whichever equipped card in the
+  // pool has the lowest value (see enforceEquipCap), so the button is never disabled.
   const statusBtns=showStatus?`
     <div style="display:flex;gap:4px;margin-top:4px;">
-      <button onclick="updField('${e.id}','status','equipped')" ${equipDisabled?'disabled':''} style="font-size:9px;padding:2px 6px;flex:1;${curStatus==='equipped'?'background:#2ACC97;color:#fff;border-color:#2ACC97;font-weight:600;':equipDisabled?'opacity:0.3;cursor:not-allowed;':'opacity:0.55;'}">${equipLabel}</button>
+      <button onclick="updField('${e.id}','status','equipped')" style="font-size:9px;padding:2px 6px;flex:1;${curStatus==='equipped'?'background:#2ACC97;color:#fff;border-color:#2ACC97;font-weight:600;':'opacity:0.55;'}">Equipped</button>
       <button onclick="updField('${e.id}','status','parked')" style="font-size:9px;padding:2px 6px;flex:1;${curStatus==='parked'?'background:#666;color:#fff;border-color:#666;font-weight:600;':'opacity:0.55;'}">Parked</button>
     </div>`:'';
   const scanBtn=['gear','mount','pet','parked'].includes(e.type)
@@ -1036,12 +1127,11 @@ function renderCards(){
       else calcHeight = 254;
     }
 
-    const pos=state.positions&&state.positions[e.id]?state.positions[e.id]:{x:e.x,y:e.y};
     const renderW=e.w;
     const capLevel=isStatEnt?cardRollCapLevel(e,d):null;
     const capClass=capLevel?` cap-${capLevel==='at'?'at':'near'}`:'';
     const capRibbon=capLevel&&!isSel?capStatusLabel(capLevel):'';
-    h+=`<div class="ecard ${e.type}${isSel?' sel':''}${capClass}" data-eid="${e.id}" style="left:${pos.x}px;top:${pos.y}px;width:${renderW}px;height:${calcHeight}px;--theme-color:${tcol};${opacityStyle};cursor:pointer;" onpointerdown="startDrag(event,'${e.id}')" onclick="cardClick(event,'${e.id}')">
+    h+=`<div class="ecard ${e.type}${isSel?' sel':''}${capClass}" data-eid="${e.id}" style="width:${renderW}px;height:${calcHeight}px;--theme-color:${tcol};${opacityStyle};cursor:pointer;" onclick="cardClick(event,'${e.id}')">
       <div class="etop" style="background:${tcol};"${capRibbon?` data-cap-label="${capRibbon}"`:''}>${d.rarity?`<span>${esc(d.rarity)}</span>`:''}</div>
       <div style="padding:5px 9px 2px;display:flex;align-items:flex-start;gap:5px;position:relative;">
         ${renderIcon(itemIcon(e,d),tcol,e.icon)}
@@ -1091,8 +1181,7 @@ function renderCards(){
       <span style="font-size:8px;color:var(--text-muted);text-align:center;line-height:1.1;margin-top:2px;">${abbr}</span>
     </div>`;
   }).join('');
-  const sumPos=state.positions&&state.positions["summary"]?state.positions["summary"]:{x:SUM.x,y:SUM.y};
-  h+=`<div class="ecard summary${isSumSel?' sel':''}" data-eid="summary" style="left:${sumPos.x}px;top:${sumPos.y}px;width:${SUM.w}px;cursor:pointer;" onpointerdown="startDrag(event,'summary')" onclick="cardClick(event,'summary')">
+  h+=`<div class="ecard summary${isSumSel?' sel':''}" data-eid="summary" style="width:${SUM.w}px;cursor:pointer;" onclick="cardClick(event,'summary')">
     <div class="etop" style="background:#378ADD;"></div>
     <div style="padding:6px 12px 4px;display:flex;align-items:center;justify-content:space-between;">
       <div style="display:flex;align-items:center;gap:5px;">
@@ -1130,7 +1219,6 @@ function flushEditorValues(){
 }
 
 function cardClick(ev,id){
-  if(_dragMoved){_dragMoved=false;return;}
   ev.stopPropagation();
   if(selId===id){
     flushEditorValues();
@@ -1214,16 +1302,6 @@ function liveUpdateCapIndicators(id,slotIdx){
 function toggleStatus(id){
   const cur=(state[id]?.status||'equipped');
   const next=cur==='equipped'?'parked':'equipped';
-  const ent=ENTS.find(e=>e.id===id);
-  if(next==='equipped'){
-    if(ent?.type==='mount'){
-      const mountEq=ENTS.filter(e=>e.type==='mount'&&e.id!==id&&(state[e.id]?.status||'equipped')==='equipped').length;
-      if(mountEq>=1) return;
-    } else if(ent?.type==='pet'||ent?.type==='parked'){
-      const eqCount=ENTS.filter(e=>(e.type==='pet'||e.type==='parked')&&e.id!==id&&(state[e.id]?.status||'equipped')==='equipped').length;
-      if(eqCount>=3) return;
-    }
-  }
   updField(id,'status',next);
 }
 
@@ -1233,14 +1311,9 @@ function updField(id,f,v,el){
   if(f==='status'&&v==='equipped'){
     const ent=ENTS.find(e=>e.id===id);
     if(ent?.type==='mount'){
-      ENTS.filter(e=>e.type==='mount'&&e.id!==id).forEach(e=>{state[e.id].status='parked';});
+      enforceEquipCap(t=>t==='mount',1,{exemptId:id});
     } else if(ent?.type==='pet'||ent?.type==='parked'){
-      const isPetType=t=>t==='pet'||t==='parked';
-      const equipped=ENTS.filter(e=>isPetType(e.type)&&e.id!==id&&(state[e.id]?.status||'equipped')==='equipped');
-      if(equipped.length>=3){
-        state[id].status='parked';
-        renderCards();queueSave();return;
-      }
+      enforceEquipCap(isPetType,3,{exemptId:id});
     }
   }
   renderCards();
@@ -1249,15 +1322,16 @@ function updField(id,f,v,el){
 
 function updSkill(i,f,v,el){
   captureFocus(el);
-  if(!state.skills.slots) state.skills.slots=Array(3).fill(0).map(()=>({name:'',level:1,stype:'Active',damage:0,hp:0}));
+  if(!state.skills.slots) state.skills.slots=Array(3).fill(0).map(()=>({name:'',level:1}));
   state.skills.slots[i][f]=v;
   renderCards();queueSave();
 }
 
-function updTechNode(nid,checked,el){
+function updTechBranch(id,level,el){
   captureFocus(el);
-  if(!state.techtree.nodes) state.techtree.nodes={};
-  state.techtree.nodes[nid]=checked;
+  if(!state.techtree.branches) state.techtree.branches={};
+  const b=TECH_BRANCHES.find(x=>x.id===id);
+  state.techtree.branches[id]=Math.max(0,Math.min(b?b.cap:25,level|0));
   renderCards();queueSave();
 }
 
@@ -1278,6 +1352,9 @@ function updAscStar(pillar,n){
 
 function clearEnt(id){
   state[id]=defData(id);
+  const ent=ENTS.find(e=>e.id===id);
+  if(ent?.type==='pet'||ent?.type==='parked') enforceEquipCap(isPetType,3);
+  else if(ent?.type==='mount') enforceEquipCap(t=>t==='mount',1);
   renderCards();queueSave();
 }
 
@@ -1352,13 +1429,9 @@ function createGearEnt(partKey){
   if(!part) return;
   closeNewCardModal();
   const id='gear_'+Date.now();
-  const w=145,h=116;
-  const c=viewportCenterOnCanvas(w,h);
-  const newEnt={id,label:part.label,type:'gear',icon:part.icon,slotIcon:part.slotIcon,x:c.x,y:c.y,w,h,_dynamic:true};
+  const newEnt={id,label:part.label,type:'gear',icon:part.icon,slotIcon:part.slotIcon,w:145,h:116,_dynamic:true};
   ENTS.push(newEnt);
   state[id]=defData(id);
-  if(!state.positions)state.positions={};
-  state.positions[id]={x:newEnt.x,y:newEnt.y};
   selId=id;
   renderCards();panCardIntoView(id);saveAll();
 }
@@ -1366,13 +1439,11 @@ function createGearEnt(partKey){
 function createEnt(type){
   closeNewCardModal();
   const id=type+'_'+Date.now();
-  const w=145, h=116;
-  const c=viewportCenterOnCanvas(w,h);
-  const newEnt={id,label:TYPE_LABEL[type],type,icon:TYPE_ICON[type],x:c.x,y:c.y,w,h,_dynamic:true};
+  const newEnt={id,label:TYPE_LABEL[type],type,icon:TYPE_ICON[type],w:145,h:116,_dynamic:true};
   ENTS.push(newEnt);
   state[id]=defData(id);
-  if(!state.positions)state.positions={};
-  state.positions[id]={x:newEnt.x,y:newEnt.y};
+  if(type==='pet') enforceEquipCap(isPetType,3);
+  else if(type==='mount') enforceEquipCap(t=>t==='mount',1);
   selId=id;
   renderCards();panCardIntoView(id);saveAll();
 }
@@ -1494,13 +1565,15 @@ function fileToDataURL(file){
   });
 }
 
-// The game's item popup always sits in the middle/lower part of a screenshot; the top
-// third is HUD (player name, stage banner) that poisons the OCR name/level detection.
+// The game's item popup always sits in the middle/lower part of a screenshot; the very
+// top strip is HUD (player name, stage banner) that poisons the OCR name/level detection.
+// Kept shallow (1/6, not 1/3) so the popup's own "Lv." badge — which sits near the top
+// of the popup itself — doesn't get cropped away along with the HUD.
 function cropScanImage(dataUrl){
   return new Promise((res,rej)=>{
     const img=new Image();
     img.onload=()=>{
-      const sy=Math.floor(img.naturalHeight/3), sh=img.naturalHeight-sy;
+      const sy=Math.floor(img.naturalHeight/6), sh=img.naturalHeight-sy;
       const c=document.createElement('canvas');
       c.width=img.naturalWidth;c.height=sh;
       c.getContext('2d').drawImage(img,0,sy,img.naturalWidth,sh,0,0,img.naturalWidth,sh);
@@ -1623,7 +1696,16 @@ function parseGearOCR(rawText){
   const lines=anchorIdx>=0?allLines.slice(Math.max(0,anchorIdx-2)):allLines;
 
   const winText=lines.join('\n');
-  const lvMatch=winText.match(/\blv\.?\s*(\d{1,4})\b/i)||winText.match(/\blevel\s*[:\-]?\s*(\d{1,4})\b/i);
+  // [l1i|] tolerates OCR misreading "L" as "1", "I", or "|" — same trust-the-correction
+  // philosophy as the substat "+"→"1" fix below. Falls back to the full, unwindowed OCR
+  // text if the anchor-window slice has no match, since the level badge can land further
+  // from the rarity anchor than a fixed 2-line lookback expects.
+  const LV_RE=/\b[l1i|]v\.?\s*(\d{1,4})\b/i, LEVEL_RE=/\blevel\s*[:\-]?\s*(\d{1,4})\b/i;
+  let lvMatch=winText.match(LV_RE)||winText.match(LEVEL_RE);
+  if(!lvMatch&&lines.length!==allLines.length){
+    const fullText=allLines.join('\n');
+    lvMatch=fullText.match(LV_RE)||fullText.match(LEVEL_RE);
+  }
   if(lvMatch) result.level=parseInt(lvMatch[1],10)||0;
 
   const claimedLines=new Set();
@@ -1779,30 +1861,26 @@ function showScanReview(parsed){
 }
 
 function applyScanResult(){
-  let id;
+  let id, newType=null;
   if(_scanTargetId&&state[_scanTargetId]){
     id=_scanTargetId;
   }else{
     const targetVal=document.getElementById('scan-target').value;
     if(!targetVal.startsWith('new:')){alert('Pick a card type to create.');return;}
     const key=targetVal.slice(4);
-    const w=145,h=116;
-    const c=viewportCenterOnCanvas(w,h);
-    const x=c.x, y=c.y;
     let newEnt;
     if(key==='pet'||key==='mount'){
       id=key+'_'+Date.now();
-      newEnt={id,label:TYPE_LABEL[key],type:key,icon:TYPE_ICON[key],x,y,w,h,_dynamic:true};
+      newEnt={id,label:TYPE_LABEL[key],type:key,icon:TYPE_ICON[key],w:145,h:116,_dynamic:true};
+      newType=key;
     }else{
       const part=GEAR_PARTS.find(p=>p.k===key);
       if(!part){alert('Pick a card type to create.');return;}
       id='gear_'+Date.now();
-      newEnt={id,label:part.label,type:'gear',icon:part.icon,slotIcon:part.slotIcon,x,y,w,h,_dynamic:true};
+      newEnt={id,label:part.label,type:'gear',icon:part.icon,slotIcon:part.slotIcon,w:145,h:116,_dynamic:true};
     }
     ENTS.push(newEnt);
     state[id]=defData(id);
-    if(!state.positions)state.positions={};
-    state.positions[id]={x,y};
   }
 
   const d=state[id];
@@ -1820,6 +1898,11 @@ function applyScanResult(){
   ensureSlotVals(d);
   syncSubstatsFromSlots(d);
 
+  // Cap check runs after the scanned stats are filled in, so the new card's own
+  // (now-real) value is what decides whether it survives the swap.
+  if(newType==='pet') enforceEquipCap(isPetType,3);
+  else if(newType==='mount') enforceEquipCap(t=>t==='mount',1);
+
   selId=id;
   renderCards();
   panCardIntoView(id);
@@ -1828,19 +1911,15 @@ function applyScanResult(){
 }
 
 function dupEnt(srcId){
-  const srcEnt=ENTS.find(e=>e.id===srcId);
-  if(!srcEnt) return;
+  const srcIdx=ENTS.findIndex(e=>e.id===srcId);
+  if(srcIdx===-1) return;
+  const srcEnt=ENTS[srcIdx];
   const newId=srcEnt.type+'_'+Date.now();
-  const srcPos=(state.positions&&state.positions[srcId])||{x:srcEnt.x,y:srcEnt.y};
-  const canvas=document.getElementById('canvas');
-  const cW=canvas?canvas.clientWidth:1800;
-  let newX=snap(srcPos.x+srcEnt.w+8), newY=snap(srcPos.y);
-  if(newX+CARD_W>cW-10){newX=snap(srcPos.x);newY=snap(srcPos.y+srcEnt.h+8);}
-  const newEnt={id:newId,label:srcEnt.label,type:srcEnt.type,icon:srcEnt.icon,x:newX,y:newY,w:CARD_W,h:srcEnt.h,_dynamic:true};
-  ENTS.push(newEnt);
+  const newEnt={id:newId,label:srcEnt.label,type:srcEnt.type,icon:srcEnt.icon,w:CARD_W,h:srcEnt.h,_dynamic:true};
+  ENTS.splice(srcIdx+1,0,newEnt);
   state[newId]=defData(newId);
-  if(!state.positions)state.positions={};
-  state.positions[newId]={x:newX,y:newY};
+  if(srcEnt.type==='pet') enforceEquipCap(isPetType,3);
+  else if(srcEnt.type==='mount') enforceEquipCap(t=>t==='mount',1);
   selId=newId;
   renderCards();panCardIntoView(newId);saveAll();
 }
@@ -1852,13 +1931,11 @@ function deleteEnt(id){
     _lastDeleted={
       ent:JSON.parse(JSON.stringify(ent)),
       data:state[id]?JSON.parse(JSON.stringify(state[id])):null,
-      pos:state.positions&&state.positions[id]?{...state.positions[id]}:null,
       wasBuiltIn:!ent._dynamic
     };
     // remove the card entirely, whether it's a built-in slot or a dynamically created one
     ENTS=ENTS.filter(e=>e.id!==id);
     delete state[id];
-    if(state.positions) delete state.positions[id];
     if(!ent._dynamic){
       if(!state.deletedIds) state.deletedIds=[];
       if(!state.deletedIds.includes(id)) state.deletedIds.push(id);
@@ -1882,10 +1959,11 @@ function hideUndo(){
 }
 function undoDelete(){
   if(!_lastDeleted)return;
-  const {ent,data,pos,wasBuiltIn}=_lastDeleted;
+  const {ent,data,wasBuiltIn}=_lastDeleted;
   if(!ENTS.find(e=>e.id===ent.id)) ENTS.push(ent);
   state[ent.id]=data||defData(ent.id);
-  if(pos){if(!state.positions)state.positions={};state.positions[ent.id]=pos;}
+  if(ent.type==='pet'||ent.type==='parked') enforceEquipCap(isPetType,3);
+  else if(ent.type==='mount') enforceEquipCap(t=>t==='mount',1);
   if(wasBuiltIn&&state.deletedIds) state.deletedIds=state.deletedIds.filter(x=>x!==ent.id);
   hideUndo();
   renderCards();saveAll();
@@ -1921,14 +1999,202 @@ function importJSON(ev){
         ENTS=ENTS.filter(e=>!delSet.has(e.id));
       }
       ENTS.forEach(e=>{if(src[e.id])state[e.id]=src[e.id];});
-      if(src.positions) state.positions=src.positions;
       if(src.charBonus) state.charBonus=src.charBonus;
+      enforceEquipCap(isPetType,3);
+      enforceEquipCap(t=>t==='mount',1);
       renderCards();saveAll();
     }catch(err){alert('Invalid JSON file');}
   };
   reader.readAsText(file);
   ev.target.value='';
 }
+// --- 1vcian/fm JSON bridge: best-effort export/import to their UserProfile format ---
+// Gear maps 1:1 by slot and skills map 1:1 by name (real skill names already match ours
+// exactly). Pets/mounts are the one genuinely lossy piece: their format identifies pets and
+// mounts by a real {Rarity,Id} pair (no names) while we use fan-community names with no
+// official id — so pets/mounts round-trip by rarity+level+substats only, with Id always a
+// placeholder (0); we do not attempt to guess which fan-named pet/mount corresponds to which
+// real id. Fields for systems we don't model (forge calculator, eggs, dungeon keys, guild
+// war, arena) get the same defaults 1vcian's own INITIAL_PROFILE uses, so exported files are
+// always structurally valid even though we don't have UI for those systems.
+const FM_GEAR_SLOT_MAP={weapon:'Weapon',helmet:'Helmet',body:'Body',gloves:'Gloves',pelvic:'Belt',necklace:'Necklace',ring:'Ring',boots:'Shoe'};
+const FM_RARITIES=['Common','Rare','Epic','Legendary','Ultimate','Mythic'];
+function fmRarity(r){return FM_RARITIES.includes(r)?r:'Common';}
+const FM_STAT_ID_MAP={
+  critChance:'CriticalChance', critDmg:'CriticalMulti', block:'BlockChance', healthRegen:'HealthRegen',
+  lifesteal:'LifeSteal', doubleChance:'DoubleDamageChance', dmg:'DamageMulti', meleeDmg:'MeleeDamageMulti',
+  rangedDmg:'RangedDamageMulti', atkSpeed:'AttackSpeed', skillDmg:'SkillDamageMulti', cooldown:'SkillCooldownMulti',
+  health:'HealthMulti',
+};
+const FM_STAT_ID_MAP_REV=Object.fromEntries(Object.entries(FM_STAT_ID_MAP).map(([k,v])=>[v,k]));
+// Real node ids (per 5-tier group) for the 13 tech-tree branches we model — lets us spread a
+// branch's total level across their per-tier node-level map, and sum it back on import.
+const TECH_BRANCH_NODE_IDS={
+  weapon:{cat:'Power',ids:[0,20,40,60,80]},
+  helmet:{cat:'Power',ids:[1,21,41,61,81]},
+  gloves:{cat:'Power',ids:[2,22,42,62,82]},
+  body:{cat:'Power',ids:[3,23,43,63,83]},
+  necklace:{cat:'Power',ids:[4,24,44,64,84]},
+  boots:{cat:'Power',ids:[5,25,45,65,85]},
+  ring:{cat:'Power',ids:[6,26,46,66,86]},
+  pelvic:{cat:'Power',ids:[7,27,47,67,87]},
+  mountDmg:{cat:'Power',ids:[8,28,48,68,88]},
+  mountHp:{cat:'Power',ids:[9,29,49,69,89]},
+  skillDmg:{cat:'SkillsPetTech',ids:[1,18,35,52,69]},
+  petDmg:{cat:'SkillsPetTech',ids:[5,22,39,56,73]},
+  petHp:{cat:'SkillsPetTech',ids:[6,23,40,57,74]},
+};
+
+function fmSecondaryStats(d){
+  return (d.activeSlots||[]).filter(Boolean).map(k=>({statId:FM_STAT_ID_MAP[k]||k, value:parseFloat((d.substats||{})[k])||0}));
+}
+function fmItemSlot(ourId){
+  const d=state[ourId]||{};
+  return {age:0, idx:0, level:d.level||0, rarity:fmRarity(d.rarity), secondaryStats:fmSecondaryStats(d)};
+}
+function fmPetOrMountSlot(ourId){
+  const d=state[ourId]||{};
+  return {id:0, rarity:fmRarity(d.rarity), level:d.level||0, evolution:0, secondaryStats:fmSecondaryStats(d)};
+}
+
+function exportAsForgeMasterProfile(){
+  const items={};
+  Object.entries(FM_GEAR_SLOT_MAP).forEach(([ourId,theirKey])=>{ items[theirKey]=fmItemSlot(ourId); });
+
+  const active=[], saved=[];
+  ENTS.filter(e=>e.type==='pet'||e.type==='parked').forEach(e=>{
+    const d=state[e.id]; if(!d||!d.name) return;
+    const slot=fmPetOrMountSlot(e.id);
+    if((d.status||'equipped')==='equipped') active.push(slot);
+    else saved.push({...slot, customName:d.name});
+  });
+
+  const mountEnt=ENTS.find(e=>e.type==='mount'&&(state[e.id]?.status||'equipped')==='equipped'&&state[e.id]?.name);
+  const mountSaved=ENTS.filter(e=>e.type==='mount'&&e!==mountEnt&&state[e.id]?.name)
+    .map(e=>({...fmPetOrMountSlot(e.id), customName:state[e.id].name}));
+
+  const skillsEquipped=((state.skills&&state.skills.slots)||[]).filter(s=>s.name).map(s=>({
+    id:s.name, rarity:(SKILLS_CATALOG[s.name]||{}).rarity||'Common', level:s.level||1, evolution:0, ascensionLevel:0,
+  }));
+
+  const branches=(state.techtree&&state.techtree.branches)||{};
+  const techTree={Forge:{},Power:{},SkillsPetTech:{},Clan:{}};
+  Object.entries(TECH_BRANCH_NODE_IDS).forEach(([bid,info])=>{
+    let remaining=techBranchLevel(branches,bid);
+    info.ids.forEach(nodeId=>{
+      const lvl=Math.min(5,remaining);
+      if(lvl>0) techTree[info.cat][nodeId]=lvl;
+      remaining-=lvl;
+    });
+  });
+
+  return {
+    id:'profile_'+Date.now()+'_'+Math.random().toString(36).slice(2,11),
+    name:'Forge Master Decision Tree Export', iconIndex:0, version:1,
+    items, savedItems:{},
+    techTree,
+    pets:{active, collection:{}, savedBuilds:saved},
+    mount:{active:mountEnt?fmPetOrMountSlot(mountEnt.id):null, collection:{}, savedBuilds:mountSaved},
+    skills:{equipped:skillsEquipped, collection:{}, passives:{}},
+    misc:{
+      forgeLevel:1, dungeonLevels:{}, eggSlots:2, eggStage:1, dungeonKeys:1, researchLevel:1,
+      forgeCalculator:{hammers:'0',targetGold:'0',mode:'hammers',autoForgeSummons:1,autoForgeInterval:2.43},
+      skillCalculatorLevel:1, skillCalculatorTickets:0,
+      mountCalculatorLevel:1, mountCalculatorProgress:0, mountCalculatorWinders:0,
+      techPotions:0, dungeonKeyCounts:{Hammer:0,Skill:0,Egg:0,Potion:0},
+      gemCount:0, useGemsInCalculators:false, simulateAscensionInCalculators:true,
+      techPlanQueue:[], techPlanStartDate:'', plannerSleepStart:'23:00', plannerSleepEnd:'07:00',
+      plannerMaxWait:120, plannerMinWaitBetweenNodes:1, techPlanMetadata:{isAuto:false},
+      useSkinWindup:true, forgeAscensionLevel:1, mountAscensionLevel:1, petAscensionLevel:1, skillAscensionLevel:1,
+    },
+  };
+}
+
+function downloadForgeMasterProfile(){
+  const payload=exportAsForgeMasterProfile();
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`forge-master-profile-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();URL.revokeObjectURL(a.href);
+}
+
+function fmApplyItemFields(d,item){
+  d.level=item.level||0;
+  d.rarity=item.rarity||'';
+  const stats=(item.secondaryStats||[]).slice(0,2);
+  d.activeSlots=[stats[0]?(FM_STAT_ID_MAP_REV[stats[0].statId]||''):'', stats[1]?(FM_STAT_ID_MAP_REV[stats[1].statId]||''):''];
+  d.slotVals=[stats[0]?(parseFloat(stats[0].value)||0):0, stats[1]?(parseFloat(stats[1].value)||0):0];
+  ensureSlotVals(d); syncSubstatsFromSlots(d);
+}
+
+function importForgeMasterProfile(json){
+  Object.entries(FM_GEAR_SLOT_MAP).forEach(([ourId,theirKey])=>{
+    const item=json.items&&json.items[theirKey];
+    if(!item) return;
+    const d=state[ourId]||defData(ourId);
+    fmApplyItemFields(d,item);
+    state[ourId]=d;
+  });
+
+  if(json.skills&&Array.isArray(json.skills.equipped)){
+    state.skills={slots:[0,1,2].map(i=>{
+      const sk=json.skills.equipped[i];
+      return sk&&SKILLS_CATALOG[sk.id] ? {name:sk.id, level:Math.max(1,Math.min(100,sk.level||1))} : {name:'',level:1};
+    })};
+  }
+
+  const branches={};
+  Object.entries(TECH_BRANCH_NODE_IDS).forEach(([bid,info])=>{
+    const cat=(json.techTree&&json.techTree[info.cat])||{};
+    let sum=0;
+    info.ids.forEach(id=>{ sum+=parseInt(cat[String(id)]||0,10)||0; });
+    const b=TECH_BRANCHES.find(x=>x.id===bid);
+    branches[bid]=Math.max(0,Math.min(b?b.cap:25,sum));
+  });
+  state.techtree={branches};
+
+  const activePets=(json.pets&&json.pets.active)||[];
+  ENTS.filter(e=>e.type==='pet').forEach((e,i)=>{
+    const p=activePets[i];
+    if(!p) return;
+    const d=state[e.id]||defData(e.id);
+    d.name=d.name||'Imported Pet';
+    d.rarity=fmRarity(p.rarity);
+    fmApplyItemFields(d,p);
+    d.status='equipped';
+    state[e.id]=d;
+  });
+  enforceEquipCap(isPetType,3);
+
+  const mountEnt=ENTS.find(e=>e.type==='mount');
+  if(mountEnt&&json.mount&&json.mount.active){
+    const m=json.mount.active;
+    const d=state[mountEnt.id]||defData(mountEnt.id);
+    d.name=d.name||'Imported Mount';
+    d.rarity=fmRarity(m.rarity);
+    fmApplyItemFields(d,m);
+    d.status='equipped';
+    state[mountEnt.id]=d;
+  }
+  enforceEquipCap(t=>t==='mount',1);
+
+  selId=null;
+  renderCards();saveAll();
+}
+
+function importForgeMasterProfileFile(ev){
+  const file=ev.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=function(){
+    try{
+      importForgeMasterProfile(JSON.parse(reader.result));
+    }catch(err){alert('Invalid Forge Master profile JSON: '+(err&&err.message?err.message:err));}
+  };
+  reader.readAsText(file);
+  ev.target.value='';
+}
+
 
 let _resetHideTimer=null;
 function toggleResetBtn(){
@@ -1955,21 +2221,24 @@ function showToast(msg){
 }
 
 function resetBoard(){
-  if(!confirm('Reset the board? Every card is emptied (positions kept) and parked cards are removed. A JSON backup downloads first.'))return;
+  if(!confirm('Reset the board? Every card is emptied and parked cards are removed. A JSON backup downloads first.'))return;
   exportJSON(); // contingency backup before anything is touched
   // remove parked (inventory) cards entirely
   ENTS.filter(e=>e.type==='parked').forEach(ent=>{
     delete state[ent.id];
-    if(state.positions) delete state.positions[ent.id];
     if(!ent._dynamic){
       if(!state.deletedIds) state.deletedIds=[];
       if(!state.deletedIds.includes(ent.id)) state.deletedIds.push(ent.id);
     }
   });
   ENTS=ENTS.filter(e=>e.type!=='parked');
-  // blank every remaining card in place — positions stay as they are.
+  // blank every remaining card in place.
   // cleared:true stops backfillSeed() from re-seeding skill slots back in on next load.
   ENTS.forEach(e=>{state[e.id]=defData(e.id);state[e.id].cleared=true;});
+  // defData() equips every pet/mount card by default; every value is 0 here (full tie),
+  // so keep it deterministic instead of the random tie-break — first N in ENTS order.
+  ENTS.filter(e=>e.type==='pet').forEach((e,i)=>{state[e.id].status=i<3?'equipped':'parked';});
+  ENTS.filter(e=>e.type==='mount').forEach((e,i)=>{state[e.id].status=i<1?'equipped':'parked';});
   state.charBonus={damagePct:0,hpPct:0};
   selId=null;_lastDeleted=null;
   document.getElementById('reset-board-btn').style.display='none';
@@ -2009,331 +2278,12 @@ document.addEventListener('keydown',function(e){
   });
 });
 
-// --- Free drag (move) / click to edit ---
-const GRID=8;
-function snap(v){return Math.round(v/GRID)*GRID;}
-
-let _drag=null, _dragMoved=false;
-function startDrag(ev,id){
-  if(ev.pointerType==='mouse'&&ev.button!==0)return;
-  if(_pinchPts.size>=2)return; // second finger of a pinch, not a drag
-  if(ev.target.closest('input,select,textarea,button,label.tcheck'))return;
-  const e=ENTS.find(e=>e.id===id);
-  const defPos=e?{x:e.x,y:e.y}:(id==='summary'?{x:SUM.x,y:SUM.y}:{x:0,y:0});
-  const cur=(state.positions&&state.positions[id])||defPos;
-  _drag={id,startX:ev.clientX,startY:ev.clientY,origX:cur.x,origY:cur.y,moved:false};
-}
-document.addEventListener('pointermove',function(ev){
-  if(!_drag)return;
-  // drag deltas are in screen px; divide by zoom so the card tracks the pointer 1:1
-  const dx=(ev.clientX-_drag.startX)/_zoom,dy=(ev.clientY-_drag.startY)/_zoom;
-  if(!_drag.moved&&Math.abs(dx)<5&&Math.abs(dy)<5)return;
-  _drag.moved=true;
-  const newX=snap(Math.max(0,_drag.origX+dx)),newY=snap(Math.max(0,_drag.origY+dy));
-  const el=document.querySelector(`[data-eid="${_drag.id}"]`);
-  if(el){el.style.left=newX+'px';el.style.top=newY+'px';}
-  if(!state.positions)state.positions={};
-  state.positions[_drag.id]={x:newX,y:newY};
-});
-function endDrag(ev){
-  if(!_drag)return;
-  if(_drag.moved){
-    if(!state.positions)state.positions={};
-    state.positions[_drag.id]={
-      x:snap(Math.max(0,_drag.origX+(ev.clientX-_drag.startX)/_zoom)),
-      y:snap(Math.max(0,_drag.origY+(ev.clientY-_drag.startY)/_zoom))
-    };
-    _dragMoved=true;
-    _drag=null;
-    queueSave();
-  } else {
-    _drag=null;
-    // cardClick on the card will fire next and handle selection
-  }
-}
-document.addEventListener('pointerup',endDrag);
-document.addEventListener('pointercancel',endDrag);
-function autoLayout(){
-  const canvas=document.getElementById('canvas');
-  if(!canvas)return;
-  const cW=canvas.clientWidth, cH=canvas.clientHeight;
-  const cw=145, ch=116, gap=8, pad=10, row=ch+gap;
-  if(!state.positions)state.positions={};
-  const p=state.positions;
-
-  // Gear row 1 (top-left): Head · Armor · Hands · Neck · Ring
-  ['helmet','body','gloves','necklace','ring'].forEach((id,i)=>p[id]={x:pad+i*(cw+gap),y:pad});
-  // Gear row 2: Weapon · Feet · Belt · Mount
-  ['weapon','boots','pelvic','mount1'].forEach((id,i)=>p[id]={x:pad+i*(cw+gap),y:pad+row});
-
-  // Spare inventory — center left
-  const mountY=Math.round(cH/2)-row;
-  p['inv1']  ={x:pad+cw+gap,y:mountY};
-
-  // Pets — top right, 3 columns
-  // Gather ALL pet-type entities, sort: equipped first (max 3), then by rarity desc
-  const petSlotIds=ENTS.filter(e=>e.type==='pet').map(e=>e.id);
-  const petParkedIds=ENTS.filter(e=>e.type==='parked'&&e.id!=='inv1').map(e=>e.id);
-  const petAllIds=[...petSlotIds,...petParkedIds];
-
-  // Sort: equipped first, then by rarity desc within each group
-  petAllIds.sort((a,b)=>{
-    const da=state[a]||{}, db=state[b]||{};
-    const ae=(da.status||'equipped')==='equipped', be=(db.status||'equipped')==='equipped';
-    if(ae!==be) return be-ae;
-    return (RARITY_RANK[db.rarity]??-1)-(RARITY_RANK[da.rarity]??-1);
-  });
-
-  const petBlockW=3*(cw+gap)-gap;
-  const petStartX=cW-petBlockW-pad;
-  petAllIds.forEach((id,i)=>{
-    p[id]={x:petStartX+(i%3)*(cw+gap), y:pad+Math.floor(i/3)*row};
-  });
-
-  // Skills & Tech Tree — bottom center, 1/3 from bottom
-  const skillY=Math.round(cH*2/3);
-  const skillsW=145, techW=145, totalW=skillsW+gap+techW;
-  const skillsX=Math.round(cW/2-totalW/2);
-  p['skills']  ={x:skillsX,         y:skillY};
-  p['techtree']={x:skillsX+skillsW+gap, y:skillY};
-
-  // Build Summary — centered
-  p['summary']={
-    x:Math.round(cW/2-SUM.w/2),
-    y:Math.round(cH/2-SUM.h/2)
-  };
-
-  clampPositions();renderCards();queueSave();
-}
-
-function clampPositions(){
-  const canvas=document.getElementById('canvas');
-  if(!canvas||!state.positions)return;
-  const cW=canvas.clientWidth,cH=canvas.clientHeight,pad=10;
-  ENTS.forEach(e=>{
-    const p=state.positions[e.id];
-    if(!p)return;
-    p.x=Math.max(pad,Math.min(p.x,cW-e.w-pad));
-    p.y=Math.max(pad,Math.min(p.y,cH-e.h-pad));
-  });
-  const sp=state.positions['summary'];
-  if(sp){
-    sp.x=Math.max(pad,Math.min(sp.x,cW-SUM.w-pad));
-    sp.y=Math.max(pad,Math.min(sp.y,cH-SUM.h-pad));
-  }
-}
-
-function snapToGrid(){
-  const canvas=document.getElementById('canvas');
-  if(!canvas)return;
-  const cw=145,ch=116,gap=8,pad=10,cellW=cw+gap,cellH=ch+gap;
-  const cW=canvas.clientWidth,cH=canvas.clientHeight;
-  const maxCols=Math.max(1,Math.floor((cW-pad*2)/cellW));
-  const maxRows=Math.max(1,Math.floor((cH-pad*2)/cellH));
-
-  const occupied=new Set();
-  function markCols(col,row,cols){for(let c=0;c<cols;c++)occupied.add(`${col+c},${row}`);}
-  function isFree(col,row,cols){
-    if(row>=maxRows) return false;
-    if(col+cols>maxCols) return false;
-    for(let c=0;c<cols;c++){if(occupied.has(`${col+c},${row}`))return false;}
-    return true;
-  }
-
-  const pinned=new Set(['skills','techtree','summary']);
-  const gridItems=ENTS.filter(e=>!pinned.has(e.id)).map(e=>{
-    const pos=(state.positions&&state.positions[e.id])||{x:e.x,y:e.y};
-    return {id:e.id,x:pos.x,y:pos.y,cols:Math.max(1,Math.round(e.w/cellW))};
-  });
-  gridItems.sort((a,b)=>{
-    const ar=Math.round((a.y-pad)/cellH),br=Math.round((b.y-pad)/cellH);
-    if(ar!==br) return ar-br;
-    return Math.round((a.x-pad)/cellW)-Math.round((b.x-pad)/cellW);
-  });
-
-  const newPos={};
-
-  for(const item of gridItems){
-    const targetCol=Math.min(Math.max(0,Math.round((item.x-pad)/cellW)),Math.max(0,maxCols-item.cols));
-    const targetRow=Math.min(Math.max(0,Math.round((item.y-pad)/cellH)),maxRows-1);
-    let placed=false;
-    outer:for(let r=targetRow;r<maxRows;r++){
-      const startC=r===targetRow?targetCol:0;
-      for(let c=startC;c<=maxCols-item.cols;c++){
-        if(isFree(c,r,item.cols)){markCols(c,r,item.cols);newPos[item.id]={x:pad+c*cellW,y:pad+r*cellH};placed=true;break outer;}
-      }
-    }
-    if(!placed){
-      for(let r=0;r<maxRows;r++){
-        for(let c=0;c<=maxCols-item.cols;c++){
-          if(isFree(c,r,item.cols)){markCols(c,r,item.cols);newPos[item.id]={x:pad+c*cellW,y:pad+r*cellH};placed=true;break;}
-        }
-        if(placed)break;
-      }
-    }
-    if(!placed) newPos[item.id]={x:Math.max(pad,Math.min(item.x,cW-item.cols*cellW-pad)),y:Math.max(pad,Math.min(item.y,cH-ch-pad))};
-  }
-
-  // Snap pinned cards (skills, techtree) to nearest grid cell within bounds
-  pinned.forEach(pid=>{
-    const ent=ENTS.find(e=>e.id===pid);
-    if(!ent)return;
-    const pos=(state.positions&&state.positions[pid])||{x:ent.x,y:ent.y};
-    const c=Math.min(Math.max(0,Math.round((pos.x-pad)/cellW)),maxCols-1);
-    const r=Math.min(Math.max(0,Math.round((pos.y-pad)/cellH)),maxRows-1);
-    newPos[pid]={x:pad+c*cellW,y:pad+r*cellH};
-  });
-
-  // Snap summary to nearest grid cell within bounds
-  const sumPos2=(state.positions&&state.positions['summary'])||{x:SUM.x,y:SUM.y};
-  const sumCols=Math.max(1,Math.round(SUM.w/cellW));
-  const sc2=Math.min(Math.max(0,Math.round((sumPos2.x-pad)/cellW)),Math.max(0,maxCols-sumCols));
-  const sr=Math.min(Math.max(0,Math.round((sumPos2.y-pad)/cellH)),maxRows-1);
-  newPos['summary']={x:pad+sc2*cellW,y:pad+sr*cellH};
-
-  state.positions={...(state.positions||{}),...newPos};
-  clampPositions();renderCards();queueSave();
-}
-
-function layoutCleanup(){
-  snapToGrid();
-}
-
-const CANVAS_W=1800, CANVAS_H=1000;
-let _resizeTimer;
-window.addEventListener('resize',()=>{clearTimeout(_resizeTimer);_resizeTimer=setTimeout(()=>{clampPositions();renderCards();if(!_userZoomed)fitToScreen();},150);});
-
-let _zoom=1,_panX=0,_panY=0,_panning=false,_panStartX=0,_panStartY=0,_panOrigX=0,_panOrigY=0;
-let _userZoomed=false; // manual zoom/pan suppresses auto-fit on window resize
-function applyZoomPan(){
-  document.getElementById('canvas').style.transform=`translate(${_panX}px,${_panY}px) scale(${_zoom})`;
-}
-// Scale + center the fixed-size canvas so the whole board fits the visible wrap area
-// (e.g. a 15" laptop viewport smaller than the 1800x1000 canvas) without manual zoom/pan.
-function fitToScreen(){
-  const wrapW=_wrap.clientWidth, wrapH=_wrap.clientHeight;
-  if(!wrapW||!wrapH) return;
-  if(wrapW<700){
-    // Phone: fitting the whole 1800px board renders cards ~43px wide. Show ~3 card
-    // columns at a readable size instead; pan/pinch reaches the rest of the board.
-    _zoom=Math.min(2,Math.max(0.3,wrapW/480));
-    _panX=0;_panY=0;
-  }else{
-    const scale=Math.min(1,wrapW/CANVAS_W,wrapH/CANVAS_H);
-    _zoom=Math.min(2,Math.max(0.3,scale));
-    _panX=Math.max(0,(wrapW-CANVAS_W*_zoom)/2);
-    _panY=Math.max(0,(wrapH-CANVAS_H*_zoom)/2);
-  }
-  _userZoomed=false;
-  applyZoomPan();
-}
-
-// Center of the visible board area in canvas coordinates — new cards spawn here so
-// they never land off-screen when the board is zoomed/panned (esp. on phones).
-function viewportCenterOnCanvas(w,h){
-  const wrap=document.getElementById('canvas-wrap');
-  const wrapW=wrap?wrap.clientWidth:CANVAS_W, wrapH=wrap?wrap.clientHeight:CANVAS_H;
-  const cx=(wrapW/2-_panX)/_zoom, cy=(wrapH/2-_panY)/_zoom;
-  return {
-    x:snap(Math.max(10,Math.min(cx-w/2,CANVAS_W-w-10))),
-    y:snap(Math.max(10,Math.min(cy-h/2,CANVAS_H-h-10)))
-  };
-}
-
-// Pan so the card — including its expanded editor when selected — is fully visible.
+// Scroll the card — including its expanded editor when selected — into view.
 function panCardIntoView(id){
   const el=document.querySelector(`#cards .ecard[data-eid="${id}"]`);
-  if(!el) return;
-  const wrapW=_wrap.clientWidth, wrapH=_wrap.clientHeight, pad=12;
-  const x0=el.offsetLeft*_zoom+_panX, y0=el.offsetTop*_zoom+_panY;
-  const x1=x0+el.offsetWidth*_zoom, y1=y0+el.offsetHeight*_zoom;
-  let dx=0, dy=0;
-  if(x1>wrapW-pad) dx=wrapW-pad-x1;
-  if(x0+dx<pad) dx=pad-x0;           // left/top edges win if the card is taller/wider than the viewport
-  if(y1>wrapH-pad) dy=wrapH-pad-y1;
-  if(y0+dy<pad) dy=pad-y0;
-  if(dx||dy){_panX+=dx;_panY+=dy;_userZoomed=true;applyZoomPan();}
+  if(el) el.scrollIntoView({block:'nearest',behavior:'smooth'});
 }
 const _wrap=document.getElementById('canvas-wrap');
-_wrap.addEventListener('wheel',function(e){
-  e.preventDefault();
-  const delta=e.deltaY>0?-0.05:0.05;
-  const newZoom=Math.min(2,Math.max(0.3,_zoom+delta));
-  if(newZoom!==_zoom){
-    // anchor the zoom on the cursor: keep the canvas point under it stationary
-    const rect=_wrap.getBoundingClientRect();
-    const mx=e.clientX-rect.left,my=e.clientY-rect.top;
-    _panX=mx-(mx-_panX)*(newZoom/_zoom);
-    _panY=my-(my-_panY)*(newZoom/_zoom);
-    _zoom=newZoom;
-    _userZoomed=true;
-  }
-  applyZoomPan();
-},{passive:false});
-_wrap.addEventListener('pointerdown',function(e){
-  if(_pinchPts.size>=2) return;
-  if(e.target.closest('.ecard')||(e.pointerType==='mouse'&&e.button!==0)) return;
-  _panning=true;_panStartX=e.clientX;_panStartY=e.clientY;_panOrigX=_panX;_panOrigY=_panY;
-  _wrap.style.cursor='grabbing';
-  e.preventDefault();
-});
-window.addEventListener('pointermove',function(e){
-  if(!_panning) return;
-  _panX=_panOrigX+(e.clientX-_panStartX);
-  _panY=_panOrigY+(e.clientY-_panStartY);
-  _userZoomed=true;
-  applyZoomPan();
-});
-function endPan(){
-  if(_panning){_panning=false;_wrap.style.cursor='';}
-}
-window.addEventListener('pointerup',endPan);
-window.addEventListener('pointercancel',endPan);
-
-// Two-finger pinch zoom for touch screens; tracked in capture phase so a pinch that
-// starts on a card zooms the board instead of dragging the card.
-const _pinchPts=new Map();
-let _pinchStart=null;
-_wrap.addEventListener('pointerdown',function(e){
-  if(e.pointerType!=='touch') return;
-  _pinchPts.set(e.pointerId,{x:e.clientX,y:e.clientY});
-  if(_pinchPts.size===2){
-    if(_drag){if(_drag.moved)queueSave();_drag=null;}
-    endPan();
-    const [a,b]=[..._pinchPts.values()];
-    const rect=_wrap.getBoundingClientRect();
-    _pinchStart={
-      dist:Math.max(1,Math.hypot(a.x-b.x,a.y-b.y)),
-      zoom:_zoom,panX:_panX,panY:_panY,
-      midX:(a.x+b.x)/2-rect.left,midY:(a.y+b.y)/2-rect.top
-    };
-  }
-},true);
-window.addEventListener('pointermove',function(e){
-  if(!_pinchPts.has(e.pointerId)) return;
-  _pinchPts.set(e.pointerId,{x:e.clientX,y:e.clientY});
-  if(_pinchPts.size!==2||!_pinchStart) return;
-  const [a,b]=[..._pinchPts.values()];
-  const dist=Math.hypot(a.x-b.x,a.y-b.y);
-  if(!dist) return;
-  const newZoom=Math.min(2,Math.max(0.3,_pinchStart.zoom*(dist/_pinchStart.dist)));
-  const rect=_wrap.getBoundingClientRect();
-  const mx=(a.x+b.x)/2-rect.left,my=(a.y+b.y)/2-rect.top;
-  // keep the canvas point that started under the pinch midpoint pinned to the moving midpoint
-  const cx=(_pinchStart.midX-_pinchStart.panX)/_pinchStart.zoom;
-  const cy=(_pinchStart.midY-_pinchStart.panY)/_pinchStart.zoom;
-  _panX=mx-cx*newZoom;
-  _panY=my-cy*newZoom;
-  _zoom=newZoom;
-  _userZoomed=true;
-  applyZoomPan();
-});
-function _pinchEnd(e){
-  _pinchPts.delete(e.pointerId);
-  if(_pinchPts.size<2) _pinchStart=null;
-}
-window.addEventListener('pointerup',_pinchEnd);
-window.addEventListener('pointercancel',_pinchEnd);
 
 // Drop an image of a gear card anywhere on the board to scan it (mirrors the Scan Gear button).
 // Global dragover/drop prevention stops the browser from navigating to the image if the drop misses.
@@ -2363,8 +2313,6 @@ function backfillAscension(){
   if(!state.ascension) state.ascension=defData('ascension');
   if(!state.ascension.stars) state.ascension.stars={forge:0,pets:0,skills:0,mounts:0};
   PILLARS.forEach(p=>{if(state.ascension[p.levelKey]==null) state.ascension[p.levelKey]=1;});
-  if(!state.positions) state.positions={};
-  if(!state.positions.ascension) state.positions.ascension={...(DEFAULT_REF_POSITIONS.ascension||{x:440,y:680})};
 }
 
 function migrateSlotVals(){
@@ -2376,12 +2324,7 @@ function migrateSlotVals(){
 
 async function init(){
   initState();await loadDB();migrateSlotVals();backfillSeed();backfillAscension();applyBuildMode();
-  if(state.positions&&Object.keys(state.positions).length){
-    clampPositions();renderCards();
-  }else{
-    autoLayout();
-  }
-  fitToScreen();
+  renderCards();
 }
 init();
 </script>
