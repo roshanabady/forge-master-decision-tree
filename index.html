@@ -261,7 +261,14 @@ input[type="checkbox"] {
 
 <script>
 const SS=[
-  // Per-roll caps sourced from the game's own SecondaryStatLibrary config
+  // Per-roll caps sourced from the game's own SecondaryStatLibrary config, extracted by
+  // https://github.com/1vcian/fm and fetched from its public/parsed_configs snapshot:
+  // https://raw.githubusercontent.com/1vcian/fm/main/public/parsed_configs/2026_07_03_12_39/SecondaryStatLibrary.json
+  // (LowerRange/UpperRange per stat). The community wiki's own "Max Substat Percentages"
+  // table (https://1vcian.me/ForgeMasterCalculator/guide.html) disagrees on 3 of these
+  // (critDmg 100 vs 80, doubleChance 40 vs 20, healthRegen 6 vs 4) — kept the raw config's
+  // numbers per explicit user direction, since it's extracted directly with no human
+  // transcription step, but flagging here in case in-game rolls ever contradict it.
   {k:'atkSpeed',    l:'Atk Speed',    max:40},
   {k:'doubleChance',l:'Double Chance',max:20},
   {k:'lifesteal',   l:'Lifesteal',    max:20},
@@ -276,14 +283,15 @@ const SS=[
   {k:'block',       l:'Block',        max:5},
   {k:'cooldown',    l:'Skill CD',     max:7},
 ];
-// Build archetypes (community guidance: Atk Speed 100%+, Lifesteal 40%+, Double Chance to its
-// 100% effectiveness cap; Crit and Skill are the recognised endgame variants).
 // capped:true = value beyond tgt is wasted (in-game effectiveness cap), flagged in the summary.
-// Targets sourced from the Forge Master community wiki's "Recommended Builds" /
-// "Max Substat Percentages" guidance (forge-master.fandom.com), not guessed:
+// Targets sourced from the Forge Master community wiki's "Recommended Builds" section:
+// https://forge-master.fandom.com/wiki/Sub_stats_and_Builds
+// (mirrored at https://1vcian.me/ForgeMasterCalculator/guide.html, "Recommended Builds"),
+// not guessed:
 // Balanced — Atk Speed 100%+, Lifesteal 40%+, Double Chance 80%+
 // Crit     — Atk Speed 100%+, Double Chance 100, Lifesteal 30%+, Crit Chance 40%+, Crit Damage 350%+
-// Skill    — Skill Damage 30, Skill Cooldown 7 (baseline Atk Speed/Double Chance/Lifesteal carried over, undocumented for this mode specifically)
+// Skill    — Skill Damage 30, Skill Cooldown 7 (baseline Atk Speed/Double Chance/Lifesteal carried
+// over from Balanced — the wiki doesn't document those 3 specifically for the Skill archetype)
 const BUILD_MODES={
   balanced:{label:'Balanced',targets:{
     atkSpeed:{tgt:100,tl:'target 100%'},
@@ -361,11 +369,18 @@ function cardRollCapLevel(e,d){
 }
 
 // Tech Tree branches that feed into build totals, sourced from the game's real
-// TechTreeLibrary/TechTreePositionLibrary config. Every branch in the real game is
-// uniformly +2%/level (Value===ValueIncrease===0.02 for all of them), spread across 5
-// tiers of up to 5 levels each — so a branch's total investment caps at 25. Branches for
-// forge-calculator/gacha/timer/tech-research mechanics are intentionally excluded — out of
-// scope (no simulation/calculator features), and irrelevant to DMG/HP totals.
+// TechTreeLibrary/TechTreePositionLibrary config (via https://github.com/1vcian/fm):
+// https://raw.githubusercontent.com/1vcian/fm/main/public/parsed_configs/2026_07_03_12_39/TechTreeLibrary.json
+// https://raw.githubusercontent.com/1vcian/fm/main/public/parsed_configs/2026_07_03_12_39/TechTreePositionLibrary.json
+// Matches the community wiki's "Tech Tree Overview" section too:
+// https://1vcian.me/ForgeMasterCalculator/guide.html ("Weapon/Glove/Necklace/Ring Mastery:
+// +2% damage per point", "Helmet/Body/Shoe/Belt Mastery: +2% health per point", "Each node
+// can be upgraded 5x per tier, for a total of 25 upgrades per node").
+// Every branch in the real game is uniformly +2%/level (Value===ValueIncrease===0.02 for all
+// of them), spread across 5 tiers of up to 5 levels each — so a branch's total investment
+// caps at 25. Branches for forge-calculator/gacha/timer/tech-research mechanics are
+// intentionally excluded — out of scope (no simulation/calculator features), and irrelevant
+// to DMG/HP totals.
 const PCT_PER_TECH_LEVEL=2;
 const TECH_BRANCHES=[
   {id:'weapon',   l:'Weapon Bonus',   slot:'weapon',   stat:'damage', cap:25},
@@ -393,7 +408,11 @@ function techBranchPct(branches,id){
 
 const SK_TYPES=['Active','Passive','Ultimate'];
 
-// Real per-skill per-level Damage/Health, sourced from the game's own SkillLibrary config.
+// Real per-skill per-level Damage/Health, sourced from the game's own SkillLibrary config:
+// https://raw.githubusercontent.com/1vcian/fm/main/public/parsed_configs/2026_07_03_12_39/SkillLibrary.json
+// (via https://github.com/1vcian/fm — see src/utils/statsCalculator.ts for how their own app
+// consumes this same file: `damage = skillData.DamagePerLevel[skill.level - 1]`, confirming
+// the level-1 indexing and that no other multiplier is applied to these numbers).
 // levelIdx = level-1 (level 1 = first table entry), matching the game's own indexing.
 const SKILLS_CATALOG={
   Meat:{rarity:'Common',dmg:[],hp:[100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,123,124,125,126,127,128,130,131,132,133,134,136,137,138,140,141,142,143,145,146,148,149,150,152,153,155,156,157,159,160,162,163,165,166,168,169,171,173,174,176,178,179,181,183,184,186,188,189,191,193,195,197,198,200,202,204,206,208,210,212,214,216,218,220,222,224,226,228,230,232,234,237,239,241,243,245,248,250]},
@@ -434,6 +453,16 @@ function skillsCardTotals(d){
   return {damage:dmg,hp};
 }
 
+// NOTE — known inaccuracy, not yet reconciled: this list conflates two separate real game
+// systems into one flat rarity dropdown, used by gear/pet/mount cards alike. The real game
+// has a 6-tier Rarity scale for pets/mounts/skills (Common, Rare, Epic, Legendary, Ultimate,
+// Mythic — see PET_RARITY_RANK above) and a completely separate 10-tier Age scale for gear
+// (Primitive, Medieval, Early-Modern, Modern, Space, Interstellar, Multiverse, Quantum,
+// Underworld, Divine — see TechTreeLibrary-adjacent ItemAgeDropChancesLibrary.json /
+// src/utils/constants.ts AGES in https://github.com/1vcian/fm). "Uncommon" doesn't exist in
+// either real system. Left as-is since gear cards already have real user-entered rarity
+// strings from either naming convention and remapping risks silently corrupting saved data —
+// flagging here for whoever untangles gear rarity vs. age into two real fields later.
 const RARITY_RANK={
   '':-1,
   Common:0, Uncommon:1, Rare:2, Epic:3, Legendary:4, Ultimate:5, Mythic:6,
@@ -456,6 +485,8 @@ const RARITY_COL={
   Ultimate:'#DC2626'
 };
 const COL={gear:'#968DF2',mount:'#2ACC97',pet:'#E96B3E',skills:'#DCA63B',techtree:'#2982D9',ascension:'#C497FE',parked:'#666666'};
+// Requirements confirmed against https://forge-master.fandom.com/wiki/Ascension (Forge level
+// 35; Pet/Skill/Mount summon level 100) — already matched what was here, no change needed.
 const PILLARS=[
   {k:'forge',  l:'Forge',  levelKey:'forgeLevel',       levelLabel:'Forge level',        req:35,  reqLabel:'Forge level 35',
    reset:'Gear resets; re-forged items gain ascension stars and stronger base stats. Forge behaves slightly differently from the other pillars.',
@@ -492,6 +523,12 @@ const PET_NAME_ICON={
 const MOUNT_NAME_ICON={
   'lily pad':'icons/mounts/lilypad1.png','lily leaf':'icons/mounts/lily-leaf.png','brown leaf':'icons/mounts/leaf.png',
 };
+// Pets (and mounts) only ever use this real 6-tier rarity scale — unlike RARITY_RANK above,
+// which also has to cover gear's separate 10-tier Age system (Space/Interstellar/Multiverse/
+// Quantum/Divine) and so isn't a reliable ranking for pets on its own.
+// Source: https://1vcian.me/ForgeMasterCalculator/guide.html ("Common/Rare/Epic/Legendary/
+// Ultimate/Mythic Pets" sections) and the game's own PetLibrary rarity keys.
+const PET_RARITY_RANK={'':-1, Common:0, Rare:1, Epic:2, Legendary:3, Ultimate:4, Mythic:5};
 const SLOT_ICON={
   helmet:'icons/gears/head.png',gloves:'icons/gears/hands.png',necklace:'icons/gears/neck.png',
   ring:'icons/gears/ring.png',weapon:'icons/gears/weapon.png',boots:'icons/gears/feet.png',
@@ -558,8 +595,8 @@ let ENTS=[
   {id:'techtree',label:'Tech Tree',      type:'techtree', icon:'ti-sitemap',     w:145,h:116},
   {id:'ascension',label:'Ascension',     type:'ascension',icon:'ti-stairs-up',   w:145,h:116},
 ];
-const SUM={w:Math.round(334*1.2),h:Math.round(200*1.2)};
-const CARD_W=145;
+const CARD_W=145, CARD_GAP=8; // CARD_GAP matches #cards' flex `gap:8px` in the HTML below
+const SUM={w:CARD_W*3+CARD_GAP*2,h:Math.round(200*1.2)}; // exactly 3 cards + the 2 gaps between them
 
 const SEED={
   weapon:   {name:'Plasma Rifle',        level:81,  rarity:'Interstellar', slots:['doubleChance','healthRegen'], substats:{doubleChance:16.2, healthRegen:3.65}, damage:737e3},
@@ -857,6 +894,42 @@ function enforceEquipCap(typeMatch,max,opts={}){
   }
 }
 
+// A "pet card" is any dedicated Pet slot, or any parked/inventory slot whose held item is
+// a recognized pet by name (parked slots are a general bench shared with mounts/overflow
+// gear, so name-matching against PET_NAME_ICON is how the rest of the app already tells
+// pets apart from everything else sitting on the bench — see itemIcon()).
+function isPetHeld(e){
+  if(e.type==='pet') return true;
+  if(e.type!=='parked') return false;
+  const d=state[e.id];
+  return !!(d&&d.name&&PET_NAME_ICON[d.name.toLowerCase()]);
+}
+// rarity desc, then sum of the two rolled substat %s desc, then base damage+hp desc.
+function petSortRank(d){
+  const rarity=PET_RARITY_RANK[d.rarity]??-1;
+  const subSum=Object.values(d.substats||{}).reduce((s,v)=>s+(parseFloat(v)||0),0);
+  const baseSum=(parseFloat(d.damage)||0)+(parseFloat(d.hp)||0);
+  return [rarity,subSum,baseSum];
+}
+// Keeps every pet card sorted by rank across all pet-holding slots (both dedicated Pet
+// slots and pets sitting in parked/inventory slots) by moving DATA between slots — the
+// slots' ids/positions on the board don't move, just which pet's data occupies each one.
+// The currently-selected card is left out of the reshuffle so its editor doesn't swap to a
+// different pet's data out from under the user mid-edit; it resorts back into place as soon
+// as it's deselected (called at the top of every renderCards()).
+function sortPetCards(){
+  const slots=ENTS.filter(isPetHeld);
+  if(slots.length<2) return;
+  const movable=slots.filter(e=>e.id!==selId);
+  if(movable.length<2) return;
+  const sortedData=movable.map(e=>state[e.id]).sort((a,b)=>{
+    const ka=petSortRank(a),kb=petSortRank(b);
+    for(let i=0;i<ka.length;i++){ if(ka[i]!==kb[i]) return kb[i]-ka[i]; }
+    return 0;
+  });
+  movable.forEach((e,i)=>{state[e.id]=sortedData[i];});
+}
+
 function cardBody(e,d,isSel,buildTotals){
   if(isSel) return makeInlineEditor(e,d);
 
@@ -1104,6 +1177,7 @@ function renderCards(){
       if(active.selectionStart!=null)_restoreFocusSel=active.selectionStart;
     }
   }
+  sortPetCards();
   const t=totals();let h='';
   // Skills/Tech Tree/Ascension render after Build Summary (see below) rather than in
   // their normal ENTS order, so this loop body is a named function called twice.
@@ -2020,6 +2094,8 @@ function importJSON(ev){
   ev.target.value='';
 }
 // --- 1vcian/fm JSON bridge: best-effort export/import to their UserProfile format ---
+// Schema source: https://raw.githubusercontent.com/1vcian/fm/main/src/types/Profile.ts
+// (the `UserProfile`/`ItemSlot`/`PetSlot`/`MountSlot`/`SkillSlot` TypeScript interfaces).
 // Gear maps 1:1 by slot and skills map 1:1 by name (real skill names already match ours
 // exactly). Pets/mounts are the one genuinely lossy piece: their format identifies pets and
 // mounts by a real {Rarity,Id} pair (no names) while we use fan-community names with no
@@ -2029,8 +2105,10 @@ function importJSON(ev){
 // war, arena) get the same defaults 1vcian's own INITIAL_PROFILE uses, so exported files are
 // always structurally valid even though we don't have UI for those systems.
 const FM_GEAR_SLOT_MAP={weapon:'Weapon',helmet:'Helmet',body:'Body',gloves:'Gloves',pelvic:'Belt',necklace:'Necklace',ring:'Ring',boots:'Shoe'};
-const FM_RARITIES=['Common','Rare','Epic','Legendary','Ultimate','Mythic'];
+const FM_RARITIES=['Common','Rare','Epic','Legendary','Ultimate','Mythic']; // src/utils/constants.ts RARITIES
 function fmRarity(r){return FM_RARITIES.includes(r)?r:'Common';}
+// statId names from the raw SecondaryStatLibrary.json keys (same file cited on SS above),
+// cross-checked against src/utils/statNames.ts in the 1vcian/fm repo.
 const FM_STAT_ID_MAP={
   critChance:'CriticalChance', critDmg:'CriticalMulti', block:'BlockChance', healthRegen:'HealthRegen',
   lifesteal:'LifeSteal', doubleChance:'DoubleDamageChance', dmg:'DamageMulti', meleeDmg:'MeleeDamageMulti',
@@ -2040,6 +2118,9 @@ const FM_STAT_ID_MAP={
 const FM_STAT_ID_MAP_REV=Object.fromEntries(Object.entries(FM_STAT_ID_MAP).map(([k,v])=>[v,k]));
 // Real node ids (per 5-tier group) for the 13 tech-tree branches we model — lets us spread a
 // branch's total level across their per-tier node-level map, and sum it back on import.
+// Extracted directly from TechTreePositionLibrary.json (same file cited on TECH_BRANCHES
+// above), filtering each category's Nodes[] down to our 13 relevant Types and their 5 tier
+// instances' Ids each.
 const TECH_BRANCH_NODE_IDS={
   weapon:{cat:'Power',ids:[0,20,40,60,80]},
   helmet:{cat:'Power',ids:[1,21,41,61,81]},
