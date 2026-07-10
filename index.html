@@ -279,24 +279,30 @@ const SS=[
 // Build archetypes (community guidance: Atk Speed 100%+, Lifesteal 40%+, Double Chance to its
 // 100% effectiveness cap; Crit and Skill are the recognised endgame variants).
 // capped:true = value beyond tgt is wasted (in-game effectiveness cap), flagged in the summary.
+// Targets sourced from the Forge Master community wiki's "Recommended Builds" /
+// "Max Substat Percentages" guidance (forge-master.fandom.com), not guessed:
+// Balanced — Atk Speed 100%+, Lifesteal 40%+, Double Chance 80%+
+// Crit     — Atk Speed 100%+, Double Chance 100, Lifesteal 30%+, Crit Chance 40%+, Crit Damage 350%+
+// Skill    — Skill Damage 30, Skill Cooldown 7 (baseline Atk Speed/Double Chance/Lifesteal carried over, undocumented for this mode specifically)
 const BUILD_MODES={
   balanced:{label:'Balanced',targets:{
     atkSpeed:{tgt:100,tl:'target 100%'},
-    doubleChance:{tgt:100,tl:'cap 100%',capped:true},
+    doubleChance:{tgt:80,tl:'floor 80%'},
     lifesteal:{tgt:40,tl:'floor 40%'},
   }},
   crit:{label:'Crit',targets:{
     atkSpeed:{tgt:100,tl:'target 100%'},
     doubleChance:{tgt:100,tl:'cap 100%',capped:true},
-    lifesteal:{tgt:40,tl:'floor 40%'},
-    critChance:{tgt:100,tl:'cap 100%',capped:true},
+    lifesteal:{tgt:30,tl:'floor 30%'},
+    critChance:{tgt:40,tl:'target 40%'},
+    critDmg:{tgt:350,tl:'target 350%'},
   }},
   skill:{label:'Skill',targets:{
     atkSpeed:{tgt:100,tl:'target 100%'},
-    doubleChance:{tgt:100,tl:'cap 100%',capped:true},
+    doubleChance:{tgt:80,tl:'floor 80%'},
     lifesteal:{tgt:40,tl:'floor 40%'},
-    skillDmg:{tgt:100,tl:'target 100%'},
-    cooldown:{tgt:30,tl:'target 30%'},
+    skillDmg:{tgt:30,tl:'target 30%'},
+    cooldown:{tgt:7,tl:'target 7%'},
   }},
 };
 function applyBuildMode(){
@@ -1099,7 +1105,9 @@ function renderCards(){
     }
   }
   const t=totals();let h='';
-  ENTS.forEach(e=>{
+  // Skills/Tech Tree/Ascension render after Build Summary (see below) rather than in
+  // their normal ENTS order, so this loop body is a named function called twice.
+  function entCardHtml(e){
     const d=state[e.id]||defData(e.id),col=COL[e.type],isSel=selId===e.id;
     const isStatEnt=['gear','mount','pet','parked'].includes(e.type);
     const title=isStatEnt&&d.name?d.name:e.label;
@@ -1131,7 +1139,7 @@ function renderCards(){
     const capLevel=isStatEnt?cardRollCapLevel(e,d):null;
     const capClass=capLevel?` cap-${capLevel==='at'?'at':'near'}`:'';
     const capRibbon=capLevel&&!isSel?capStatusLabel(capLevel):'';
-    h+=`<div class="ecard ${e.type}${isSel?' sel':''}${capClass}" data-eid="${e.id}" style="width:${renderW}px;height:${calcHeight}px;--theme-color:${tcol};${opacityStyle};cursor:pointer;" onclick="cardClick(event,'${e.id}')">
+    return `<div class="ecard ${e.type}${isSel?' sel':''}${capClass}" data-eid="${e.id}" style="width:${renderW}px;height:${calcHeight}px;--theme-color:${tcol};${opacityStyle};cursor:pointer;" onclick="cardClick(event,'${e.id}')">
       <div class="etop" style="background:${tcol};"${capRibbon?` data-cap-label="${capRibbon}"`:''}>${d.rarity?`<span>${esc(d.rarity)}</span>`:''}</div>
       <div style="padding:5px 9px 2px;display:flex;align-items:flex-start;gap:5px;position:relative;">
         ${renderIcon(itemIcon(e,d),tcol,e.icon)}
@@ -1145,7 +1153,9 @@ function renderCards(){
       ${cardBody(e,d,isSel,t)}
       ${statusFooter}
     </div>`;
-  });
+  }
+  const TAIL_TYPES=['skills','techtree','ascension'];
+  ENTS.filter(e=>!TAIL_TYPES.includes(e.type)).forEach(e=>{h+=entCardHtml(e);});
   const isSumSel=selId==='summary';
   // Split substats: those with a target get horizontal rows; the rest get a vertical bar chart
   const mainSS=SS.filter(s=>s.tgt);
@@ -1202,6 +1212,7 @@ function renderCards(){
       <div style="display:flex;gap:3px;">${chartArea}</div>
     </div>
   </div>`;
+  ENTS.filter(e=>TAIL_TYPES.includes(e.type)).forEach(e=>{h+=entCardHtml(e);});
   document.getElementById('cards').innerHTML=h;
   restoreFocus();
 }
@@ -2221,24 +2232,28 @@ function showToast(msg){
 }
 
 function resetBoard(){
-  if(!confirm('Reset the board? Every card is emptied and parked cards are removed. A JSON backup downloads first.'))return;
+  if(!confirm('Reset the board? Every card is emptied, parked cards are removed, and any pet/mount beyond the equip cap (3 pets, 1 mount) is removed too. A JSON backup downloads first.'))return;
   exportJSON(); // contingency backup before anything is touched
-  // remove parked (inventory) cards entirely
-  ENTS.filter(e=>e.type==='parked').forEach(ent=>{
+  const removeEnt=ent=>{
     delete state[ent.id];
     if(!ent._dynamic){
       if(!state.deletedIds) state.deletedIds=[];
       if(!state.deletedIds.includes(ent.id)) state.deletedIds.push(ent.id);
     }
-  });
-  ENTS=ENTS.filter(e=>e.type!=='parked');
+  };
+  // Parked/inventory cards are removed entirely, and so is any pet/mount beyond its equip
+  // cap (3 pets, 1 mount) — deterministic (keep the first N in ENTS order), since there's
+  // no point leaving empty excess slots parked after a reset.
+  const toRemove=ENTS.filter(e=>e.type==='parked')
+    .concat(ENTS.filter(e=>e.type==='pet').slice(3))
+    .concat(ENTS.filter(e=>e.type==='mount').slice(1));
+  toRemove.forEach(removeEnt);
+  const removeSet=new Set(toRemove.map(e=>e.id));
+  ENTS=ENTS.filter(e=>!removeSet.has(e.id));
   // blank every remaining card in place.
   // cleared:true stops backfillSeed() from re-seeding skill slots back in on next load.
   ENTS.forEach(e=>{state[e.id]=defData(e.id);state[e.id].cleared=true;});
-  // defData() equips every pet/mount card by default; every value is 0 here (full tie),
-  // so keep it deterministic instead of the random tie-break — first N in ENTS order.
-  ENTS.filter(e=>e.type==='pet').forEach((e,i)=>{state[e.id].status=i<3?'equipped':'parked';});
-  ENTS.filter(e=>e.type==='mount').forEach((e,i)=>{state[e.id].status=i<1?'equipped':'parked';});
+  ENTS.filter(e=>e.type==='pet'||e.type==='mount').forEach(e=>{state[e.id].status='equipped';});
   state.charBonus={damagePct:0,hpPct:0};
   selId=null;_lastDeleted=null;
   document.getElementById('reset-board-btn').style.display='none';
