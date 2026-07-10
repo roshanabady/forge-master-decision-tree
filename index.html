@@ -1209,7 +1209,8 @@ function renderCards(){
       else calcHeight = 254;
     }
 
-    const renderW=e.w;
+    // The equipped mount card is shown 2 cards wide (parked/other mount cards stay normal size).
+    const renderW=(e.type==='mount'&&(d.status||'equipped')==='equipped')?CARD_W*2+CARD_GAP:e.w;
     const capLevel=isStatEnt?cardRollCapLevel(e,d):null;
     const capClass=capLevel?` cap-${capLevel==='at'?'at':'near'}`:'';
     const capRibbon=capLevel&&!isSel?capStatusLabel(capLevel):'';
@@ -1229,7 +1230,15 @@ function renderCards(){
     </div>`;
   }
   const TAIL_TYPES=['skills','techtree','ascension'];
-  ENTS.filter(e=>!TAIL_TYPES.includes(e.type)).forEach(e=>{h+=entCardHtml(e);});
+  // flex-basis:100% forces a line break in the flex-wrap grid regardless of viewport width,
+  // so the gear block always lays out as two fixed rows (Head/Armor/Hands/Neck/Ring, then
+  // Weapon/Feet/Belt/Mount) instead of reflowing with everything else.
+  const ROW_BREAK='<div style="flex-basis:100%;height:0;"></div>';
+  const ROW_BREAK_AFTER=new Set(['ring','mount1']);
+  ENTS.filter(e=>!TAIL_TYPES.includes(e.type)).forEach(e=>{
+    h+=entCardHtml(e);
+    if(ROW_BREAK_AFTER.has(e.id)) h+=ROW_BREAK;
+  });
   const isSumSel=selId==='summary';
   // Split substats: those with a target get horizontal rows; the rest get a vertical bar chart
   const mainSS=SS.filter(s=>s.tgt);
