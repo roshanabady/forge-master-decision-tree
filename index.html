@@ -930,6 +930,24 @@ function sortPetCards(){
   movable.forEach((e,i)=>{state[e.id]=sortedData[i];});
 }
 
+// Keeps mount cards ordered equipped-first: the equipped mount always occupies the first
+// mount slot (the fixed, 2-card-wide "right after Belt" position in the gear block —
+// see ROW_BREAK_AFTER/renderW in renderCards()), bumping whichever mount was equipped
+// there before back to a normal parked slot. Same data-moves-between-slots + pin-while-
+// editing approach as sortPetCards (only one mount can ever be equipped, so no further
+// tiebreak is needed among the rest — they just keep their existing relative order).
+function sortMountCards(){
+  const slots=ENTS.filter(e=>e.type==='mount');
+  if(slots.length<2) return;
+  const movable=slots.filter(e=>e.id!==selId);
+  if(movable.length<2) return;
+  const sortedData=movable.map(e=>state[e.id]).sort((a,b)=>{
+    const ae=(a.status||'equipped')==='equipped', be=(b.status||'equipped')==='equipped';
+    return (be?1:0)-(ae?1:0);
+  });
+  movable.forEach((e,i)=>{state[e.id]=sortedData[i];});
+}
+
 function cardBody(e,d,isSel,buildTotals){
   if(isSel) return makeInlineEditor(e,d);
 
@@ -1178,6 +1196,7 @@ function renderCards(){
     }
   }
   sortPetCards();
+  sortMountCards();
   const t=totals();let h='';
   // Skills/Tech Tree/Ascension render after Build Summary (see below) rather than in
   // their normal ENTS order, so this loop body is a named function called twice.
