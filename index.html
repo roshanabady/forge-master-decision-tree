@@ -1825,7 +1825,7 @@ function parseGearOCR(rawText){
       const idx=ll.indexOf(r.toLowerCase());
       if(idx===-1) continue;
       result.rarity=r;
-      const after=allLines[i].slice(idx+r.length).replace(/^[\]\)\}\|>:,.\s-]+/,'').trim();
+      const after=allLines[i].slice(idx+r.length).replace(/^[\]\)\}\|>:,.\s-]+/,'').replace(/[:,.\s]+$/,'').trim();
       if(after.length>=2) result.name=after;
       anchorIdx=i;
       break;
@@ -1862,17 +1862,31 @@ function parseGearOCR(rawText){
   lines.forEach((line,idx)=>{
     const ll=line.toLowerCase();
     for(const key of SS_PRIORITY){
-      const hit=SS_ALIASES[key].some(a=>ll.includes(a));
-      if(!hit) continue;
-      const numMatch=line.match(/([+-]?\d+(?:\.\d+)?)\s*%/);
-      if(!numMatch) continue;
+      let aliasIdx=-1;
+      for(const a of SS_ALIASES[key]){
+        const ai=ll.indexOf(a);
+        if(ai!==-1){aliasIdx=ai;break;}
+      }
+      if(aliasIdx===-1) continue;
+      // A line can carry OCR noise ahead of the real value — a stray glyph/icon misread
+      // as e.g. "5%" before the actual "+19.7% Lifesteal" — so taking the first %-number
+      // on the line grabs the noise instead. The game always prints "<value>% <StatName>",
+      // so prefer the %-number closest to (and before) the matched stat-name text; only
+      // fall back to the first match on the line if none precedes it.
+      const percentRe=/([+-]?\d+(?:\.\d+)?)\s*%/g;
+      const candidates=[];
+      let m;
+      while((m=percentRe.exec(line))) candidates.push({raw:m[1],idx:m.index});
+      if(!candidates.length) continue;
+      const before=candidates.filter(c=>c.idx<aliasIdx);
+      const numRaw=(before.length?before[before.length-1]:candidates[0]).raw;
       // abs(): the game renders "less is better" stats negative ("-5.74% Skill Cooldown") but the app stores positive values
-      let val=Math.abs(parseFloat(numMatch[1]));
+      let val=Math.abs(parseFloat(numRaw));
       // OCR reads the leading "+" as a "1" ("+13.4%" → "113.4%"); if the value breaks
       // the stat's roll cap and dropping that 1 fixes it, trust the capped reading.
       const smax=(SS.find(x=>x.k===key)||{}).max;
-      if(smax&&val>smax&&/^[+-]?1/.test(numMatch[1])){
-        const alt=Math.abs(parseFloat(numMatch[1].replace(/^([+-]?)1/,'$1')));
+      if(smax&&val>smax&&/^[+-]?1/.test(numRaw)){
+        const alt=Math.abs(parseFloat(numRaw.replace(/^([+-]?)1/,'$1')));
         if(alt&&alt<=smax) val=alt;
       }
       found.push({key,val,idx});
