@@ -247,7 +247,10 @@ input[type="checkbox"] {
       </div>
       <details style="margin-bottom:10px;">
         <summary style="font-size:9px;color:var(--text-muted);cursor:pointer;">Raw OCR text</summary>
-        <pre id="scan-raw-text" style="font-size:9px;color:var(--text-muted);white-space:pre-wrap;max-height:80px;overflow:auto;margin:4px 0 0;"></pre>
+        <div style="display:flex;justify-content:flex-end;margin-top:4px;">
+          <button type="button" id="scan-raw-copy" onclick="copyRawOcrText(this)" style="font-size:9px;padding:1px 7px;opacity:0.7;">Copy</button>
+        </div>
+        <pre id="scan-raw-text" style="font-size:9px;color:var(--text-muted);white-space:pre-wrap;max-height:80px;overflow:auto;margin:2px 0 0;"></pre>
       </details>
       <div style="display:flex;gap:6px;">
         <button onclick="resetScanModal()" style="flex:1;padding:6px;font-size:11px;opacity:0.7;">Rescan</button>
@@ -523,6 +526,50 @@ const PET_NAME_ICON={
 const MOUNT_NAME_ICON={
   'lily pad':'icons/mounts/lilypad1.png','lily leaf':'icons/mounts/lily-leaf.png','brown leaf':'icons/mounts/leaf.png',
 };
+// Every gear item name across all ages/slots, sourced from 1vcian/fm's AutoItemMapping.json
+// (same provenance as the SS roll-cap table above) — unlike pets/mounts' small fixed roster,
+// gear has 232 possible names, so canonicalScanName() needs this full catalog to fuzzy-correct
+// garbled OCR gear names (e.g. "INeutsinolBelt" -> "Neutrino Belt") the same way it already
+// does for pets/mounts.
+const GEAR_ITEM_NAMES=[
+  'AK','Abyssal Fork','Adamantium','Advanced Mech','Alien Head','Ammo Pouch','Angelic Pitchfork',
+  'Antigravity Boots','Antimatter Feet','Armor Skirt','Aura Ring','Axe','Bark Gloves','Baton',
+  'Battle Helmet','Bear Paw','Beard','Bearskin','Belt Of Baltazar','Beltpouch','Bio Helmet',
+  'Black Belt','Black Bow','Black Gun','Black Hammer','Black Spear','Black Staff',
+  'Black Sword & Shield','Blaster','Blessedgem','Blowgun','Bolt','Bone','Boneskirt','Bow',
+  'Branch','Brotherhood Ring','Camouflage','Cape','Captains Hat','Cardigan','Casquette',
+  'Celestial Treaders','Celtic Overhead','Circleof Pain','Clock','Club','Combat Boots',
+  'Combat Gloves','Connection Ring','Corset','Crimson Belt','Crossbow','Crystal Amulet',
+  'Cuirass','Death Hat','Delta Armor','Destroyer Mask','Divinity Ring','Dog Tags','Doom Mace',
+  'Doomplate','Double Saber','Dragon Dagger','Dreadsteps','Dual Pistols','Eclipse Ring',
+  'Emerald','Enchanter Gloves','Energy Helmet','Ethereal Socks','Executioner','Exoskeleton',
+  'Face Paint','Fast Travellers','Feather Hat','Fedora Hat','Feet Thrusters','Foot Wraps',
+  'Fortune Necklace','Gamma Collar','Gas Mask','Gauntlet','Glitch Necklace','Gravity Gloves',
+  'Greaves','Greek Helmet','Gripof Torment','Hair Bandana','Hair Tied','Halffingers','Harness',
+  'Heavy Duty','Hellforged Helm','Hide','Higgs Collar','Holo Armor','Holy Gown',
+  'Hydraulic Feet','Icarus Ring','Impactors','Implants','Impulse','Infernal Trident',
+  'Ionic Blaster','Iron Holo','Iron Mech','Iron Plates','Ironfist','Ironring',
+  'Isobaric Cutter','Ivoryshin','Katana','Kevlar','Kevlar Helmet','Knight Helmet',
+  'Knuckle Dusters','Kuiper Necklace','Leather Belt','Leather Boots','Leather Gloves',
+  'Light & Shield','Lucky Charm','M4','Mask','Mercury Sandals','Mitts','Mobius Ring',
+  'Molten Plates','Musket','Nazar Ring','Neutrino Belt','Neutron Fingerprints','Officer Hat',
+  'Orbit Belt','Orbiter Suit','Paladin Armor','Pelvic Synchronizer','Pendant','Pirate Sword',
+  'Plasma Rifle','Plasma Suit','Prism Ring','Probability Ring','Projected Cutlass',
+  'Protective Halo','Psi Choker','Quantum Helm','Rainbow Gloves','Rapier','Rarium Ring',
+  'Ray Gun','Reality Belt','Remote','Riding Boots','Riot Helmet','Riot Shield','Robo Feet',
+  'Robo Helm','Robot Sword','Rock','Roman Helmet','Rotfang Visor','Saber','Samurai Helmet',
+  'Sanctity Belt','Sandals','Scythe','Sergeant Hat','Serpent Sword','Serpent Wreath',
+  'Shadow Scimitar','Shaman Talisman','Shardring','Siren Song','Skull','Skullbinder',
+  'Skullring','Slavic Hat','Slinger','Sniper','Solarius Ring','Sorcerer Belt','Soulpiercer',
+  'Space Boots','Space Gloves','Space Gun','Space Helmet','Space Pistol','Space Suit',
+  'Spear & Shield','Spearsh','Spectral Plates','Spinal Stabilizer','Spite Collar',
+  'Spite Crown','Spurred Stomper','Staff','Staff Of Wisdom','Steel Helmet','Stellarium',
+  'Straps','Sub Mask','Sword Shield','Tactical Belt','Talon Necklace','Thor Amulet',
+  'Thorn Necklace','Tomahawk','Tooth Necklace','Top Hat','Treasure Key','Trident','Trinity',
+  'Uzi','Valor Sigil','Venom Crest','Veteran Boots','Virtual Bow','Virtual Gun',
+  'Virtual Helmet','Virtual Sword','Void Claw','Void Necklace','Waisttie','War Hammer',
+  'War Mask','White Hair','Winter Hat','Wizard Hat','Worshipper Gloves','Wrench',
+];
 // Pets (and mounts) only ever use this real 6-tier rarity scale — unlike RARITY_RANK above,
 // which also has to cover gear's separate 10-tier Age system (Space/Interstellar/Multiverse/
 // Quantum/Divine) and so isn't a reliable ranking for pets on its own.
@@ -1611,6 +1658,17 @@ function closeScanModal(){
   _scanTargetId=null;
   document.getElementById('scan-modal').style.display='none';
 }
+function copyRawOcrText(btn){
+  const text=(document.getElementById('scan-raw-text').textContent||'').trim();
+  if(!text||text==='(no text recognized)') return;
+  const done=ok=>{
+    const orig=btn.textContent;
+    btn.textContent=ok?'Copied':'Copy failed';
+    setTimeout(()=>{btn.textContent=orig;},1200);
+  };
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(()=>done(true),()=>done(false));
+  else done(false);
+}
 function resetScanModal(){
   stopCamera();
   document.getElementById('scan-step-capture').style.display='block';
@@ -1694,14 +1752,17 @@ function cropScanImage(dataUrl){
     const img=new Image();
     img.onload=()=>{
       const sy=Math.floor(img.naturalHeight/6), sh=img.naturalHeight-sy;
-      // Upscale 2x and gently boost contrast. The item popup's level badge ("Equipped"/
-      // "Locked" + "Lv.NN") is small light text stamped directly on the icon artwork, not
-      // near the name/rarity text at all — and the name itself uses a bold outlined font.
-      // Both are classic small-text-on-graphic cases Tesseract misses at native screenshot
-      // resolution; upscaling + a mild contrast stretch are standard OCR preprocessing
-      // fixes for exactly this, without a full grayscale pass that risks washing out
-      // regions that already OCR fine (substats, most names/rarities).
-      const scale=2;
+      // Upscale and boost contrast. The item popup's level badge ("Equipped"/"Locked" +
+      // "Lv.NN") is small light text stamped directly on the icon artwork, not near the
+      // name/rarity text at all — and the name itself uses a bold outlined font. Both are
+      // classic small-text-on-graphic cases Tesseract misses at native screenshot
+      // resolution; upscaling + a contrast stretch are standard OCR preprocessing fixes
+      // for exactly this, without a full grayscale pass that risks washing out regions
+      // that already OCR fine (substats, most names/rarities).
+      // UNVERIFIED: an earlier pass at 2x/1.25 (this repo's PR #13) still missed the level
+      // badge entirely in 2 of 3 real scans since — bumped further as a best-effort attempt,
+      // not confirmed against a live scan. Costs more OCR time (9x pixel area vs 3x before).
+      const scale=3;
       const c=document.createElement('canvas');
       c.width=img.naturalWidth*scale; c.height=sh*scale;
       const ctx=c.getContext('2d');
@@ -1709,7 +1770,7 @@ function cropScanImage(dataUrl){
       ctx.drawImage(img,0,sy,img.naturalWidth,sh,0,0,c.width,c.height);
       const imgData=ctx.getImageData(0,0,c.width,c.height);
       const px=imgData.data;
-      const contrast=1.25, mid=128;
+      const contrast=1.4, mid=128;
       for(let i=0;i<px.length;i+=4){
         px[i]  =Math.max(0,Math.min(255,(px[i]  -mid)*contrast+mid));
         px[i+1]=Math.max(0,Math.min(255,(px[i+1]-mid)*contrast+mid));
@@ -1790,12 +1851,18 @@ function canonicalScanName(raw){
   const norm=cleaned.toLowerCase().replace(/[^a-z0-9 ]/g,'').trim();
   if(!norm) return cleaned;
   const cands=new Set([...Object.keys(PET_NAME_ICON),...Object.keys(MOUNT_NAME_ICON)]);
+  GEAR_ITEM_NAMES.forEach(n=>cands.add(n.toLowerCase()));
   ENTS.forEach(e=>{const nm=state[e.id]&&state[e.id].name;if(nm)cands.add(nm.toLowerCase());});
   // OCR often prepends junk ("lfuceant;" for "Treant"), so also try candidate-sized
-  // windows of the OCR string and keep the best alignment.
+  // windows of the OCR string and keep the best alignment. Gated to longer candidates with
+  // a small length gap: without it, short candidates (gear has plenty — "AK", "Bolt",
+  // "Rock") would near-always find SOME substring of a much longer garbled string within
+  // the edit-distance threshold purely by chance, since Levenshtein against a short word is
+  // cheap to fake. Real junk prefixes are only ever a few stray characters ahead of a
+  // multi-word name, so this gate still covers them.
   const dist=(s,c)=>{
     let d=levenshtein(s,c);
-    if(s.length>c.length){
+    if(s.length>c.length&&c.length>=6&&s.length-c.length<=4){
       for(const L of [c.length-1,c.length,c.length+1]){
         if(L<1||L>s.length) continue;
         for(let i=0;i+L<=s.length;i++) d=Math.min(d,levenshtein(s.slice(i,i+L),c));
@@ -1821,11 +1888,27 @@ function parseGearOCR(rawText){
   const rarWords=RARITIES.filter(Boolean).sort((a,b)=>b.length-a.length);
   for(let i=0;i<allLines.length&&anchorIdx===-1;i++){
     const ll=allLines[i].toLowerCase();
+    const leadJunk=(ll.match(/^[\[\(\{]?/)||[''])[0].length;
     for(const r of rarWords){
-      const idx=ll.indexOf(r.toLowerCase());
+      const rl=r.toLowerCase();
+      let idx=ll.indexOf(rl), matchLen=r.length;
+      if(idx===-1){
+        // OCR can misread a character INSIDE the rarity word itself (e.g. "Interstellar"
+        // -> "Interstellap"), not just around it — an exact substring search then finds
+        // nothing at all, which is worse than a bad rarity: with no anchor line, name/DMG/
+        // HP extraction below falls back to scanning the ENTIRE noisy OCR text instead of
+        // just the popup's own lines, and picks up unrelated background noise. Only tried
+        // right after the line's leading bracket (the game's fixed "[Rarity] Name" layout)
+        // so short rarity words ("Rare") can't spuriously match noise elsewhere in the line.
+        const maxD=r.length<=4?0:(r.length<=6?1:2);
+        for(const L of [r.length-1,r.length,r.length+1]){
+          if(L<1||leadJunk+L>ll.length) continue;
+          if(levenshtein(ll.slice(leadJunk,leadJunk+L),rl)<=maxD){idx=leadJunk;matchLen=L;break;}
+        }
+      }
       if(idx===-1) continue;
       result.rarity=r;
-      const after=allLines[i].slice(idx+r.length).replace(/^[\]\)\}\|>:,.\s-]+/,'').replace(/[:,.\s]+$/,'').trim();
+      const after=allLines[i].slice(idx+matchLen).replace(/^[\]\)\}\|>:,.\s-]+/,'').replace(/[:,.\s]+$/,'').trim();
       if(after.length>=2) result.name=after;
       anchorIdx=i;
       break;
