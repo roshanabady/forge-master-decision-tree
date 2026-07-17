@@ -198,11 +198,6 @@ input[type="checkbox"] {
       <div id="scan-dropzone" style="border:1.5px dashed var(--border-strong);border-radius:8px;padding:16px;text-align:center;font-size:10px;color:var(--text-muted);margin-bottom:16px;">…or drop an image here</div>
       <input type="file" id="scan-camera-input" accept="image/*" capture="environment" style="display:none;" onchange="handleScanInput(event)">
       <input type="file" id="scan-file-input" accept="image/*" style="display:none;" onchange="handleScanInput(event)">
-      <div style="text-align:right;">
-        <button type="button" onclick="event.stopPropagation();openOcrSettings()" style="font-size:9px;padding:2px 6px;opacity:0.6;background:none;border:none;text-decoration:underline;cursor:pointer;">
-          OCR engine: <span id="ocr-engine-label">Tesseract (built-in)</span>
-        </button>
-      </div>
     </div>
 
     <div id="scan-step-camera" style="display:none;">
@@ -267,28 +262,6 @@ input[type="checkbox"] {
   </div>
 </div>
 
-<div id="ocr-settings-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1001;align-items:center;justify-content:center;" onclick="closeOcrSettings()">
-  <div style="background:var(--surface-2);border:1px solid var(--border-strong);border-radius:12px;padding:24px 28px;width:340px;max-width:94vw;box-sizing:border-box;box-shadow:0 8px 32px rgba(0,0,0,0.5);" onclick="event.stopPropagation()">
-    <div style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:4px;">OCR engine</div>
-    <div style="font-size:10px;color:var(--text-muted);margin:2px 0 14px;">
-      By default, scans run entirely in your browser via Tesseract (free, but misses small text like level badges).
-      Optionally point it at a proxy endpoint that forwards to Azure AI Vision instead (see the repo's
-      <code style="font-size:9px;">ocr-proxy/</code> folder to deploy one — a free Cloudflare Worker). Left blank, Tesseract is used.
-    </div>
-    <div style="margin-bottom:8px;">
-      <label style="font-size:9px;color:var(--text-muted);display:block;margin-bottom:2px;">Proxy URL (blank = use built-in Tesseract)</label>
-      <input id="ocr-worker-url" type="text" placeholder="https://your-worker.workers.dev" class="ef-in">
-    </div>
-    <div style="margin-bottom:14px;">
-      <label style="font-size:9px;color:var(--text-muted);display:block;margin-bottom:2px;">Shared token (set when you deployed the proxy)</label>
-      <input id="ocr-worker-token" type="text" class="ef-in">
-    </div>
-    <div style="display:flex;gap:6px;">
-      <button onclick="closeOcrSettings()" style="flex:1;padding:6px;font-size:11px;opacity:0.7;">Cancel</button>
-      <button onclick="saveOcrSettings()" style="flex:1;padding:6px;font-size:11px;background:#378ADD !important;border-color:#378ADD !important;font-weight:600;">Save</button>
-    </div>
-  </div>
-</div>
 
 <script>
 const SS=[
@@ -849,10 +822,6 @@ async function loadDB(){
     }),new Promise(res=>{
       const r=st.get('_buildMode');
       r.onsuccess=()=>{if(r.result)state.buildMode=r.result.data;res();};
-      r.onerror=()=>res();
-    }),new Promise(res=>{
-      const r=st.get('_ocrConfig');
-      r.onsuccess=()=>{if(r.result?.data)state.ocrConfig=r.result.data;res();};
       r.onerror=()=>res();
     })]);
   }catch(err){db=null;}
@@ -1654,47 +1623,6 @@ let _tesseractLoadPromise=null, _scanImageDataUrl=null;
 // (entered via the camera button on a selected card; cleared on close, kept across Rescan).
 let _scanTargetId=null;
 
-function ocrEngineLabel(){
-  return (state.ocrConfig&&state.ocrConfig.workerUrl)?'Azure (via proxy)':'Tesseract (built-in)';
-}
-function refreshOcrEngineLabel(){
-  const el=document.getElementById('ocr-engine-label');
-  if(el) el.textContent=ocrEngineLabel();
-}
-function openOcrSettings(){
-  document.getElementById('ocr-worker-url').value=(state.ocrConfig&&state.ocrConfig.workerUrl)||'';
-  document.getElementById('ocr-worker-token').value=(state.ocrConfig&&state.ocrConfig.token)||'';
-  document.getElementById('ocr-settings-modal').style.display='flex';
-}
-function closeOcrSettings(){
-  document.getElementById('ocr-settings-modal').style.display='none';
-}
-async function saveOcrSettings(){
-  const workerUrl=document.getElementById('ocr-worker-url').value.trim().replace(/\/+$/,'');
-  const token=document.getElementById('ocr-worker-token').value.trim();
-  state.ocrConfig={workerUrl,token};
-  if(db){
-    const tx=db.transaction('items','readwrite');
-    tx.objectStore('items').put({id:'_ocrConfig',data:state.ocrConfig});
-    await new Promise(res=>{tx.oncomplete=res;tx.onerror=res;});
-  }
-  refreshOcrEngineLabel();
-  closeOcrSettings();
-}
-// Sends the cropped image to the configured proxy instead of running OCR locally. Returns
-// the same shape Tesseract's recognize() gives parseGearOCR: a newline-joined text blob.
-async function ocrViaWorkerProxy(dataUrl){
-  const {workerUrl,token}=state.ocrConfig;
-  const blob=await (await fetch(dataUrl)).blob();
-  const res=await fetch(workerUrl,{
-    method:'POST',
-    headers:{'Content-Type':'application/octet-stream','X-Auth-Token':token},
-    body:blob,
-  });
-  if(!res.ok) throw new Error(`OCR proxy returned ${res.status}: ${(await res.text()).slice(0,200)}`);
-  const data=await res.json();
-  return data.text||'';
-}
 function loadTesseract(){
   if(window.Tesseract) return Promise.resolve();
   if(_tesseractLoadPromise) return _tesseractLoadPromise;
@@ -1866,23 +1794,9 @@ async function processScanFile(file){
   document.getElementById('scan-step-review').style.display='none';
   document.getElementById('scan-step-loading').style.display='block';
   const progText=document.getElementById('scan-progress-text');
-  const useProxy=!!(state.ocrConfig&&state.ocrConfig.workerUrl);
   let worker=null;
   try{
     _scanImageDataUrl=await cropScanImage(await fileToDataURL(file));
-    if(useProxy){
-      progText.textContent='Reading image (Azure)…';
-      try{
-        const text=await ocrViaWorkerProxy(_scanImageDataUrl);
-        showScanReview(parseGearOCR(text));
-        return;
-      }catch(proxyErr){
-        // Fall through to Tesseract rather than failing the whole scan — the proxy might be
-        // down, misconfigured, or over quota, but a scan attempt should still succeed.
-        progText.textContent='Azure proxy failed, falling back to Tesseract…';
-        console.warn('OCR proxy failed, falling back to Tesseract:',proxyErr);
-      }
-    }
     progText.textContent='Loading OCR engine…';
     await loadTesseract();
     progText.textContent='Reading image…';
@@ -2691,7 +2605,6 @@ async function init(){
   // cap, since nothing else enforces it before the first render.
   enforceEquipCap(t=>t==='mount',1);
   renderCards();
-  refreshOcrEngineLabel();
 }
 init();
 </script>
