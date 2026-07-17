@@ -2005,13 +2005,26 @@ function parseGearOCR(rawText){
   result.damage=hinted.damage||0;
   result.hp=hinted.hp||0;
 
-  if(!result.name){
-    for(const line of lines){
+  // Bounded to the anchor line and the one right after it — NOT `lines` above, which runs
+  // unbounded to the end of the OCR text (correct for substat/DMG/HP search, which can
+  // legitimately trail the anchor by several lines, but dangerous here: with nothing better
+  // to match, an unbounded search happily grabs unrelated decorative text far below the
+  // popup — bottom-nav icons, chat noise — as the "name"). With no anchor at all (rarity
+  // unreadable even fuzzy), there's no reliable position to bound from, so leave name empty
+  // rather than guess from anywhere in the noise — an empty field is an honest signal that
+  // OCR missed it; a wrong-looking value can slip past review unnoticed.
+  if(!result.name&&anchorIdx>=0){
+    const nameWindow=allLines.slice(anchorIdx,Math.min(allLines.length,anchorIdx+2));
+    for(const line of nameWindow){
       const ll=line.toLowerCase();
       if(RARITIES.filter(Boolean).some(r=>ll.includes(r.toLowerCase()))) continue;
       if(/\blv\.?\s*\d/.test(ll)||/\blevel\b/.test(ll)) continue;
       if(/%/.test(line)) continue;
       if(/^[\d\s.,kmb%⚔♥+\-]+$/i.test(line)) continue;
+      // A k/m/b-suffixed number is always the DMG/HP line ("137m Health"), never a real
+      // item name, but doesn't match the pure-numeric filter above once a keyword like
+      // "Health" is attached to it.
+      if(/\d+(?:\.\d+)?\s*[kmb]\b/i.test(line)) continue;
       if(line.length<2) continue;
       result.name=line;
       break;
