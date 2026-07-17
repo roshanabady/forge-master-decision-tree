@@ -247,7 +247,10 @@ input[type="checkbox"] {
       </div>
       <details style="margin-bottom:10px;">
         <summary style="font-size:9px;color:var(--text-muted);cursor:pointer;">Raw OCR text</summary>
-        <pre id="scan-raw-text" style="font-size:9px;color:var(--text-muted);white-space:pre-wrap;max-height:80px;overflow:auto;margin:4px 0 0;"></pre>
+        <div style="display:flex;justify-content:flex-end;margin-top:4px;">
+          <button type="button" id="scan-raw-copy" onclick="copyRawOcrText(this)" style="font-size:9px;padding:1px 7px;opacity:0.7;">Copy</button>
+        </div>
+        <pre id="scan-raw-text" style="font-size:9px;color:var(--text-muted);white-space:pre-wrap;max-height:80px;overflow:auto;margin:2px 0 0;"></pre>
       </details>
       <div style="display:flex;gap:6px;">
         <button onclick="resetScanModal()" style="flex:1;padding:6px;font-size:11px;opacity:0.7;">Rescan</button>
@@ -258,6 +261,7 @@ input[type="checkbox"] {
     <button onclick="closeScanModal()" style="width:100%;padding:6px;font-size:11px;opacity:0.7;margin-top:10px;">Cancel</button>
   </div>
 </div>
+
 
 <script>
 const SS=[
@@ -523,6 +527,50 @@ const PET_NAME_ICON={
 const MOUNT_NAME_ICON={
   'lily pad':'icons/mounts/lilypad1.png','lily leaf':'icons/mounts/lily-leaf.png','brown leaf':'icons/mounts/leaf.png',
 };
+// Every gear item name across all ages/slots, sourced from 1vcian/fm's AutoItemMapping.json
+// (same provenance as the SS roll-cap table above) — unlike pets/mounts' small fixed roster,
+// gear has 232 possible names, so canonicalScanName() needs this full catalog to fuzzy-correct
+// garbled OCR gear names (e.g. "INeutsinolBelt" -> "Neutrino Belt") the same way it already
+// does for pets/mounts.
+const GEAR_ITEM_NAMES=[
+  'AK','Abyssal Fork','Adamantium','Advanced Mech','Alien Head','Ammo Pouch','Angelic Pitchfork',
+  'Antigravity Boots','Antimatter Feet','Armor Skirt','Aura Ring','Axe','Bark Gloves','Baton',
+  'Battle Helmet','Bear Paw','Beard','Bearskin','Belt Of Baltazar','Beltpouch','Bio Helmet',
+  'Black Belt','Black Bow','Black Gun','Black Hammer','Black Spear','Black Staff',
+  'Black Sword & Shield','Blaster','Blessedgem','Blowgun','Bolt','Bone','Boneskirt','Bow',
+  'Branch','Brotherhood Ring','Camouflage','Cape','Captains Hat','Cardigan','Casquette',
+  'Celestial Treaders','Celtic Overhead','Circleof Pain','Clock','Club','Combat Boots',
+  'Combat Gloves','Connection Ring','Corset','Crimson Belt','Crossbow','Crystal Amulet',
+  'Cuirass','Death Hat','Delta Armor','Destroyer Mask','Divinity Ring','Dog Tags','Doom Mace',
+  'Doomplate','Double Saber','Dragon Dagger','Dreadsteps','Dual Pistols','Eclipse Ring',
+  'Emerald','Enchanter Gloves','Energy Helmet','Ethereal Socks','Executioner','Exoskeleton',
+  'Face Paint','Fast Travellers','Feather Hat','Fedora Hat','Feet Thrusters','Foot Wraps',
+  'Fortune Necklace','Gamma Collar','Gas Mask','Gauntlet','Glitch Necklace','Gravity Gloves',
+  'Greaves','Greek Helmet','Gripof Torment','Hair Bandana','Hair Tied','Halffingers','Harness',
+  'Heavy Duty','Hellforged Helm','Hide','Higgs Collar','Holo Armor','Holy Gown',
+  'Hydraulic Feet','Icarus Ring','Impactors','Implants','Impulse','Infernal Trident',
+  'Ionic Blaster','Iron Holo','Iron Mech','Iron Plates','Ironfist','Ironring',
+  'Isobaric Cutter','Ivoryshin','Katana','Kevlar','Kevlar Helmet','Knight Helmet',
+  'Knuckle Dusters','Kuiper Necklace','Leather Belt','Leather Boots','Leather Gloves',
+  'Light & Shield','Lucky Charm','M4','Mask','Mercury Sandals','Mitts','Mobius Ring',
+  'Molten Plates','Musket','Nazar Ring','Neutrino Belt','Neutron Fingerprints','Officer Hat',
+  'Orbit Belt','Orbiter Suit','Paladin Armor','Pelvic Synchronizer','Pendant','Pirate Sword',
+  'Plasma Rifle','Plasma Suit','Prism Ring','Probability Ring','Projected Cutlass',
+  'Protective Halo','Psi Choker','Quantum Helm','Rainbow Gloves','Rapier','Rarium Ring',
+  'Ray Gun','Reality Belt','Remote','Riding Boots','Riot Helmet','Riot Shield','Robo Feet',
+  'Robo Helm','Robot Sword','Rock','Roman Helmet','Rotfang Visor','Saber','Samurai Helmet',
+  'Sanctity Belt','Sandals','Scythe','Sergeant Hat','Serpent Sword','Serpent Wreath',
+  'Shadow Scimitar','Shaman Talisman','Shardring','Siren Song','Skull','Skullbinder',
+  'Skullring','Slavic Hat','Slinger','Sniper','Solarius Ring','Sorcerer Belt','Soulpiercer',
+  'Space Boots','Space Gloves','Space Gun','Space Helmet','Space Pistol','Space Suit',
+  'Spear & Shield','Spearsh','Spectral Plates','Spinal Stabilizer','Spite Collar',
+  'Spite Crown','Spurred Stomper','Staff','Staff Of Wisdom','Steel Helmet','Stellarium',
+  'Straps','Sub Mask','Sword Shield','Tactical Belt','Talon Necklace','Thor Amulet',
+  'Thorn Necklace','Tomahawk','Tooth Necklace','Top Hat','Treasure Key','Trident','Trinity',
+  'Uzi','Valor Sigil','Venom Crest','Veteran Boots','Virtual Bow','Virtual Gun',
+  'Virtual Helmet','Virtual Sword','Void Claw','Void Necklace','Waisttie','War Hammer',
+  'War Mask','White Hair','Winter Hat','Wizard Hat','Worshipper Gloves','Wrench',
+];
 // Pets (and mounts) only ever use this real 6-tier rarity scale — unlike RARITY_RANK above,
 // which also has to cover gear's separate 10-tier Age system (Space/Interstellar/Multiverse/
 // Quantum/Divine) and so isn't a reliable ranking for pets on its own.
@@ -1574,6 +1622,7 @@ let _tesseractLoadPromise=null, _scanImageDataUrl=null;
 // When set, the scan flow updates this existing card instead of creating a new one
 // (entered via the camera button on a selected card; cleared on close, kept across Rescan).
 let _scanTargetId=null;
+
 function loadTesseract(){
   if(window.Tesseract) return Promise.resolve();
   if(_tesseractLoadPromise) return _tesseractLoadPromise;
@@ -1610,6 +1659,17 @@ function closeScanModal(){
   stopCamera();
   _scanTargetId=null;
   document.getElementById('scan-modal').style.display='none';
+}
+function copyRawOcrText(btn){
+  const text=(document.getElementById('scan-raw-text').textContent||'').trim();
+  if(!text||text==='(no text recognized)') return;
+  const done=ok=>{
+    const orig=btn.textContent;
+    btn.textContent=ok?'Copied':'Copy failed';
+    setTimeout(()=>{btn.textContent=orig;},1200);
+  };
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(()=>done(true),()=>done(false));
+  else done(false);
 }
 function resetScanModal(){
   stopCamera();
@@ -1694,14 +1754,17 @@ function cropScanImage(dataUrl){
     const img=new Image();
     img.onload=()=>{
       const sy=Math.floor(img.naturalHeight/6), sh=img.naturalHeight-sy;
-      // Upscale 2x and gently boost contrast. The item popup's level badge ("Equipped"/
-      // "Locked" + "Lv.NN") is small light text stamped directly on the icon artwork, not
-      // near the name/rarity text at all — and the name itself uses a bold outlined font.
-      // Both are classic small-text-on-graphic cases Tesseract misses at native screenshot
-      // resolution; upscaling + a mild contrast stretch are standard OCR preprocessing
-      // fixes for exactly this, without a full grayscale pass that risks washing out
-      // regions that already OCR fine (substats, most names/rarities).
-      const scale=2;
+      // Upscale and boost contrast. The item popup's level badge ("Equipped"/"Locked" +
+      // "Lv.NN") is small light text stamped directly on the icon artwork, not near the
+      // name/rarity text at all — and the name itself uses a bold outlined font. Both are
+      // classic small-text-on-graphic cases Tesseract misses at native screenshot
+      // resolution; upscaling + a contrast stretch are standard OCR preprocessing fixes
+      // for exactly this, without a full grayscale pass that risks washing out regions
+      // that already OCR fine (substats, most names/rarities).
+      // UNVERIFIED: an earlier pass at 2x/1.25 (this repo's PR #13) still missed the level
+      // badge entirely in 2 of 3 real scans since — bumped further as a best-effort attempt,
+      // not confirmed against a live scan. Costs more OCR time (9x pixel area vs 3x before).
+      const scale=3;
       const c=document.createElement('canvas');
       c.width=img.naturalWidth*scale; c.height=sh*scale;
       const ctx=c.getContext('2d');
@@ -1709,7 +1772,7 @@ function cropScanImage(dataUrl){
       ctx.drawImage(img,0,sy,img.naturalWidth,sh,0,0,c.width,c.height);
       const imgData=ctx.getImageData(0,0,c.width,c.height);
       const px=imgData.data;
-      const contrast=1.25, mid=128;
+      const contrast=1.4, mid=128;
       for(let i=0;i<px.length;i+=4){
         px[i]  =Math.max(0,Math.min(255,(px[i]  -mid)*contrast+mid));
         px[i+1]=Math.max(0,Math.min(255,(px[i+1]-mid)*contrast+mid));
@@ -1731,10 +1794,10 @@ async function processScanFile(file){
   document.getElementById('scan-step-review').style.display='none';
   document.getElementById('scan-step-loading').style.display='block';
   const progText=document.getElementById('scan-progress-text');
-  progText.textContent='Loading OCR engine…';
   let worker=null;
   try{
     _scanImageDataUrl=await cropScanImage(await fileToDataURL(file));
+    progText.textContent='Loading OCR engine…';
     await loadTesseract();
     progText.textContent='Reading image…';
     worker=await Tesseract.createWorker('eng',1,{
@@ -1790,12 +1853,18 @@ function canonicalScanName(raw){
   const norm=cleaned.toLowerCase().replace(/[^a-z0-9 ]/g,'').trim();
   if(!norm) return cleaned;
   const cands=new Set([...Object.keys(PET_NAME_ICON),...Object.keys(MOUNT_NAME_ICON)]);
+  GEAR_ITEM_NAMES.forEach(n=>cands.add(n.toLowerCase()));
   ENTS.forEach(e=>{const nm=state[e.id]&&state[e.id].name;if(nm)cands.add(nm.toLowerCase());});
   // OCR often prepends junk ("lfuceant;" for "Treant"), so also try candidate-sized
-  // windows of the OCR string and keep the best alignment.
+  // windows of the OCR string and keep the best alignment. Gated to longer candidates with
+  // a small length gap: without it, short candidates (gear has plenty — "AK", "Bolt",
+  // "Rock") would near-always find SOME substring of a much longer garbled string within
+  // the edit-distance threshold purely by chance, since Levenshtein against a short word is
+  // cheap to fake. Real junk prefixes are only ever a few stray characters ahead of a
+  // multi-word name, so this gate still covers them.
   const dist=(s,c)=>{
     let d=levenshtein(s,c);
-    if(s.length>c.length){
+    if(s.length>c.length&&c.length>=6&&s.length-c.length<=4){
       for(const L of [c.length-1,c.length,c.length+1]){
         if(L<1||L>s.length) continue;
         for(let i=0;i+L<=s.length;i++) d=Math.min(d,levenshtein(s.slice(i,i+L),c));
@@ -1821,11 +1890,27 @@ function parseGearOCR(rawText){
   const rarWords=RARITIES.filter(Boolean).sort((a,b)=>b.length-a.length);
   for(let i=0;i<allLines.length&&anchorIdx===-1;i++){
     const ll=allLines[i].toLowerCase();
+    const leadJunk=(ll.match(/^[\[\(\{]?/)||[''])[0].length;
     for(const r of rarWords){
-      const idx=ll.indexOf(r.toLowerCase());
+      const rl=r.toLowerCase();
+      let idx=ll.indexOf(rl), matchLen=r.length;
+      if(idx===-1){
+        // OCR can misread a character INSIDE the rarity word itself (e.g. "Interstellar"
+        // -> "Interstellap"), not just around it — an exact substring search then finds
+        // nothing at all, which is worse than a bad rarity: with no anchor line, name/DMG/
+        // HP extraction below falls back to scanning the ENTIRE noisy OCR text instead of
+        // just the popup's own lines, and picks up unrelated background noise. Only tried
+        // right after the line's leading bracket (the game's fixed "[Rarity] Name" layout)
+        // so short rarity words ("Rare") can't spuriously match noise elsewhere in the line.
+        const maxD=r.length<=4?0:(r.length<=6?1:2);
+        for(const L of [r.length-1,r.length,r.length+1]){
+          if(L<1||leadJunk+L>ll.length) continue;
+          if(levenshtein(ll.slice(leadJunk,leadJunk+L),rl)<=maxD){idx=leadJunk;matchLen=L;break;}
+        }
+      }
       if(idx===-1) continue;
       result.rarity=r;
-      const after=allLines[i].slice(idx+r.length).replace(/^[\]\)\}\|>:,.\s-]+/,'').trim();
+      const after=allLines[i].slice(idx+matchLen).replace(/^[\]\)\}\|>:,.\s-]+/,'').replace(/[:,.\s]+$/,'').trim();
       if(after.length>=2) result.name=after;
       anchorIdx=i;
       break;
@@ -1862,17 +1947,31 @@ function parseGearOCR(rawText){
   lines.forEach((line,idx)=>{
     const ll=line.toLowerCase();
     for(const key of SS_PRIORITY){
-      const hit=SS_ALIASES[key].some(a=>ll.includes(a));
-      if(!hit) continue;
-      const numMatch=line.match(/([+-]?\d+(?:\.\d+)?)\s*%/);
-      if(!numMatch) continue;
+      let aliasIdx=-1;
+      for(const a of SS_ALIASES[key]){
+        const ai=ll.indexOf(a);
+        if(ai!==-1){aliasIdx=ai;break;}
+      }
+      if(aliasIdx===-1) continue;
+      // A line can carry OCR noise ahead of the real value — a stray glyph/icon misread
+      // as e.g. "5%" before the actual "+19.7% Lifesteal" — so taking the first %-number
+      // on the line grabs the noise instead. The game always prints "<value>% <StatName>",
+      // so prefer the %-number closest to (and before) the matched stat-name text; only
+      // fall back to the first match on the line if none precedes it.
+      const percentRe=/([+-]?\d+(?:\.\d+)?)\s*%/g;
+      const candidates=[];
+      let m;
+      while((m=percentRe.exec(line))) candidates.push({raw:m[1],idx:m.index});
+      if(!candidates.length) continue;
+      const before=candidates.filter(c=>c.idx<aliasIdx);
+      const numRaw=(before.length?before[before.length-1]:candidates[0]).raw;
       // abs(): the game renders "less is better" stats negative ("-5.74% Skill Cooldown") but the app stores positive values
-      let val=Math.abs(parseFloat(numMatch[1]));
+      let val=Math.abs(parseFloat(numRaw));
       // OCR reads the leading "+" as a "1" ("+13.4%" → "113.4%"); if the value breaks
       // the stat's roll cap and dropping that 1 fixes it, trust the capped reading.
       const smax=(SS.find(x=>x.k===key)||{}).max;
-      if(smax&&val>smax&&/^[+-]?1/.test(numMatch[1])){
-        const alt=Math.abs(parseFloat(numMatch[1].replace(/^([+-]?)1/,'$1')));
+      if(smax&&val>smax&&/^[+-]?1/.test(numRaw)){
+        const alt=Math.abs(parseFloat(numRaw.replace(/^([+-]?)1/,'$1')));
         if(alt&&alt<=smax) val=alt;
       }
       found.push({key,val,idx});
@@ -1908,13 +2007,26 @@ function parseGearOCR(rawText){
   result.damage=hinted.damage||0;
   result.hp=hinted.hp||0;
 
-  if(!result.name){
-    for(const line of lines){
+  // Bounded to the anchor line and the one right after it — NOT `lines` above, which runs
+  // unbounded to the end of the OCR text (correct for substat/DMG/HP search, which can
+  // legitimately trail the anchor by several lines, but dangerous here: with nothing better
+  // to match, an unbounded search happily grabs unrelated decorative text far below the
+  // popup — bottom-nav icons, chat noise — as the "name"). With no anchor at all (rarity
+  // unreadable even fuzzy), there's no reliable position to bound from, so leave name empty
+  // rather than guess from anywhere in the noise — an empty field is an honest signal that
+  // OCR missed it; a wrong-looking value can slip past review unnoticed.
+  if(!result.name&&anchorIdx>=0){
+    const nameWindow=allLines.slice(anchorIdx,Math.min(allLines.length,anchorIdx+2));
+    for(const line of nameWindow){
       const ll=line.toLowerCase();
       if(RARITIES.filter(Boolean).some(r=>ll.includes(r.toLowerCase()))) continue;
       if(/\blv\.?\s*\d/.test(ll)||/\blevel\b/.test(ll)) continue;
       if(/%/.test(line)) continue;
       if(/^[\d\s.,kmb%⚔♥+\-]+$/i.test(line)) continue;
+      // A k/m/b-suffixed number is always the DMG/HP line ("137m Health"), never a real
+      // item name, but doesn't match the pure-numeric filter above once a keyword like
+      // "Health" is attached to it.
+      if(/\d+(?:\.\d+)?\s*[kmb]\b/i.test(line)) continue;
       if(line.length<2) continue;
       result.name=line;
       break;
